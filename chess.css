@@ -178,6 +178,7 @@ button { font: inherit; color: inherit; }
 .cx-online__msg { margin: 0; min-height: 1.4em; font-size: 15px; color: var(--pen-red); }
 .cx-say__text { font: 700 24px var(--hand); }
 
+.cx-side.is-drawing { pointer-events: none; }
 /* the margin panel stays readable over the doodles and the sea */
 .cx-side { text-shadow: 0 0 4px #f3eee2, 0 0 8px #f3eee2, 0 0 2px #f3eee2; }
 .cx-side__a, .cx-side__b { display: flex; flex-direction: column; gap: 14px; min-width: 0; }

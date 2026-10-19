@@ -2103,6 +2103,25 @@
 
   /* ---------- controls ---------- */
 
+  // while the page is being drawn, the margin panel is written in too, one line at a time,
+  // and it cannot be used until the drawing is done, so no button can interrupt it
+  let panelTl = null;
+  function drawPanelIn(at, until) {
+    const side = document.querySelector(".cx-side");
+    if (!side || !anim) return;
+    side.inert = true;
+    side.classList.add("is-drawing");
+    const bits = [...side.querySelectorAll(".cx-status, .cx-note, .cx-buttons > *, .cx-opts, .cx-online:not([hidden]), .cx-side__head, .cx-moves, .cx-tray")].filter((el) => el.offsetParent !== null);
+    if (panelTl) panelTl.kill();
+    const unlock = () => { side.inert = false; side.classList.remove("is-drawing"); };
+    G.set(bits, { clipPath: "inset(0 100% 0 0)", opacity: 0 });
+    panelTl = G.timeline({ delay: at, onComplete: () => G.set(bits, { clearProps: "clipPath,opacity" }) })
+      .call(() => sfx("scratch", 0.3), null, 0)
+      .to(bits, { opacity: 1, clipPath: "inset(0 0% 0 0)", duration: 0.55, ease: "steps(9)", stagger: Math.max(0.05, (until - at - 0.8) / Math.max(1, bits.length)) });
+    // the panel unlocks exactly when the board is ready
+    G.delayedCall(until, unlock);
+  }
+
   function newGame(first = false) {
     game = new Game();
     over = null; selected = -1; legal = []; lastMove = null; firstCapture = true; busy = false;
@@ -2126,6 +2145,7 @@
       drawDecoIn(boardTime + 8 * 0.2 + 1.1);
       ready = boardTime + 8 * 0.2 + 1.2;
       if (mode !== "online") writeYourMove(ready);
+      drawPanelIn(boardTime * 0.5, ready);
     } else {
       buildPieces(true);
       leanBoard(cssTilt(), 0.5);
