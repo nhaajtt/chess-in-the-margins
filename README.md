@@ -153,7 +153,7 @@ the address to see one on any day.
 - Play the computer on easy, normal or hard, as either team, or play a friend on the same screen.
 - Use a 5 or 10 minute clock. Every second the old time is crossed out and the new one written in.
 - Undo, flip the board (it turns round on the table) or resign with a sticky note that asks `resign?`.
-- Turn the sound on: everything plays on a little toy box of a marimba, bells, a slide whistle, a wood block and soap bubbles, all in one cheerful scale so overlapping sounds always fit. The acorn's sword goes swish and clack, the bee queen's wand twinkles, the wizard's zap fizzes, the pony kicks and clip-clops, and a poked creature squeaks like a toy.
+- Turn the sound on: everything plays on a little toy box of a marimba, bells, a slide whistle, a wood block and soap bubbles, all in one cheerful scale so overlapping sounds always fit. The acorn's sword goes swish and clack, the bee queen's wand twinkles, the wizard's zap fizzes, the pony kicks and clip-clops, and a poked creature squeaks like a toy. While the page is drawn you hear the pencil, a tick for every line of the board and a note as each creature is coloured in, rising file by file; the opening story has a quiet music box under it and its own sound switch.
 - Read the commentary on a sticky note, which notices forks, checks, hanging pieces and castling.
 - Play with the keyboard: Tab to the board, arrow keys to move around, Enter to pick up and put down.
 - With reduced motion turned on in your system, everything holds still and the whole game still works.

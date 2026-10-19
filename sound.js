@@ -164,7 +164,7 @@
     win() { [[5, 0], [7, 0.13], [9, 0.26], [10, 0.39], [9, 0.55], [10, 0.68], [12, 0.82]].forEach(([d, at], i) => marimba(deg(d), at, 0.24, i === 6 ? 0.9 : 0.4)); bell(deg(15), 0.82, 0.1, 1.4); },
     lose() { whistle(deg(9), deg(7), 0, 0.35, 0.09, 5); whistle(deg(8), deg(6), 0.4, 0.35, 0.09, 5); whistle(deg(7), deg(3), 0.8, 0.8, 0.09, 8); },
     draw() { bell(deg(14), 0, 0.09, 0.6); bell(deg(15), 0.16, 0.09, 0.6); },
-    scratch(dur = 0.4, at = 0) { for (let i = 0; i < Math.max(1, Math.round(dur / 0.16)); i++) shaker(at + i * 0.16, 0.12, 0.018, R(2200, 3000)); },
+    scratch(dur = 0.4) { this.pencil(dur, 0.8); },
     erase(dur = 1.3) { for (let i = 0; i < Math.round(dur / 0.2); i++) shaker(i * 0.2, 0.18, 0.022, 1100); },
     note() { wood(deg(10), 0, 0.12); },
     emote(e, side = 0) {
@@ -193,6 +193,30 @@
     page() { shaker(0, 0.35, 0.04, 1700); },
     confetti() { run([9, 12, 10, 14, 12, 15], 0, 0.06, bubble, 0.1); },
     shootingstar() { run([17, 16, 14, 13, 11], 0, 0.06, bell, 0.05); },
+    /* ---------- drawing: the pencil, and a note for everything that appears ---------- */
+    // a pencil scribbling: soft scritch-scratch strokes, never hissy (busy: 0..1, how hard it draws)
+    pencil(dur = 0.5, busy = 1) {
+      const n = Math.max(2, Math.round(dur / 0.09));
+      for (let i = 0; i < n; i++) shaker(i * 0.09 + R(0, 0.03), R(0.06, 0.1), 0.05 * busy * R(0.7, 1.1), R(1600, 2600));
+    },
+    // a line drawn with a ruler ends with a tiny tick; the ticks climb the scale one after another
+    line(i = 0) { wood(deg(5 + (i % 12)), 0, 0.09); },
+    // a creature finishes being drawn: its note, a little higher on every file, with a sparkle on top
+    appear(i = 0, side = 0) { const d = 5 + (i % 8) + (side ? 2 : 0); marimba(deg(d), 0, 0.13, 0.5); bell(deg(d + 5), 0.05, 0.035, 0.6); },
+    // a doodle in the margin is done: a bubble or a bell, taking turns
+    doodle(i = 0) { if (i % 2) bubble(deg(9 + (i * 3) % 7), 0, 0.12); else bell(deg(10 + (i * 2) % 6), 0, 0.05, 0.6); },
+    // the board and everyone on it are ready
+    tada() { run([7, 9, 10, 12], 0, 0.08, marimba, 0.2); bell(deg(15), 0.32, 0.09, 1.2); },
+    // a creature in the story hops, waves or jumps
+    hop(i = 0) { whistle(deg(8 + (i % 4)), deg(12 + (i % 4)), 0, 0.14, 0.07); },
+    // a new page of the story: a little harp run
+    scene() { run([5, 7, 9, 10, 12, 14], 0, 0.045, bell, 0.05); },
+    // the story's music box: a lullaby, one bar at a time, very quiet under everything else
+    musicbox(bar = 0) {
+      const BARS = [[7, 9, 10, 9], [7, 5, 7, 4], [5, 7, 9, 12], [10, 9, 7, 9], [7, 9, 10, 12], [14, 12, 10, 9], [7, 9, 7, 5], [4, 5, 7, 7]];
+      BARS[bar % BARS.length].forEach((d, i) => bell(deg(d), i * 0.4, 0.035, 0.9));
+      marimba(deg([2, 0, 3, 4, 2, 4, 0, 2][bar % 8]), 0, 0.05, 1.2);
+    },
     // after each move, the team that moved hums a little: brighter when ahead, gentler when behind
     tune(side = 0, mood = 0) {
       const b = side ? 2 : 0;

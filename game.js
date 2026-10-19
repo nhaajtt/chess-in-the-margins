@@ -172,7 +172,13 @@
     const labels = [...ink.querySelectorAll(".cx-labels text")];
     G.set(labels, { opacity: 0 });
     const tl = G.timeline({ delay: at, onComplete: () => { undash([...vs.flat(), ...hs.flat(), ...squares]); } });
-    for (let i = 0; i < 18; i++) tl.call(() => sfx("scratch", 0.25), null, i * 0.09 + (i > 8 ? 0.05 : 0));
+    for (let i = 0; i < 18; i++) {
+      const t0 = i < 9 ? i * 0.09 : 0.85 + (i - 9) * 0.09;
+      tl.call(() => sfx("pencil", 0.3, 0.7), null, t0);
+      tl.call(() => sfx("line", i), null, t0 + 0.3);
+    }
+    tl.call(() => sfx("pencil", 1.2, 0.9), null, 1.6);
+    labels.forEach((_, i) => tl.call(() => sfx("line", 18 - i), null, 2.0 + i * 0.04));
     vs.forEach((l, i) => tl.to(l, { strokeDashoffset: 0, duration: 0.32, ease: "power1.inOut" }, i * 0.09));
     hs.forEach((l, i) => tl.to(l, { strokeDashoffset: 0, duration: 0.32, ease: "power1.inOut" }, 0.85 + i * 0.09));
     tl.to(washes, { opacity: 1, duration: 0.45, ease: "none", stagger: { each: 0.9 / Math.max(1, washes.length), from: "random" } }, 1.6);
@@ -329,8 +335,12 @@
       // the pen draws each creature, file by file, then it colours it in; when all are done they wave
       for (const [sq, el] of els) {
         const f = flipped ? 7 - (sq & 7) : sq & 7, back = (sq >> 4) === 0 || (sq >> 4) === 7;
-        CR.drawIn(el.__c, drawAt + f * 0.2 + (back ? 0 : 0.08) + (colorOf(el.__p) ? 0.1 : 0), 0.8);
+        const t0 = drawAt + f * 0.2 + (back ? 0 : 0.08) + (colorOf(el.__p) ? 0.1 : 0);
+        CR.drawIn(el.__c, t0, 0.8);
+        if (back && !colorOf(el.__p)) G.delayedCall(t0, () => sfx("pencil", 0.6, 0.55));
+        G.delayedCall(t0 + 0.75, () => sfx("appear", f, colorOf(el.__p)));
       }
+      G.delayedCall(drawAt + 8 * 0.2 + 0.85, () => sfx("tada"));
       const done = drawAt + 8 * 0.2 + 0.9;
       penBusy = true;
       G.delayedCall(done, () => { penBusy = false; if (!decoDrawing) bakePieces(); });
@@ -2327,6 +2337,8 @@
       const texts = [...g.querySelectorAll("text")];
       G.set([...fills, ...texts, ...lines], { opacity: 0 });
       const tl = G.timeline({ delay: at + i * DECO_STEP, onComplete: () => undash(paths) });
+      if (i % 3 === 0) tl.call(() => sfx("pencil", 0.5, 0.45), null, 0);
+      tl.call(() => sfx("doodle", i), null, 0.75);
       if (paths.length) tl.to(paths, { strokeDashoffset: 0, duration: 0.7, ease: "power1.inOut", stagger: { each: 0.5 / Math.max(1, paths.length) } });
       if (lines.length) tl.to(lines, { opacity: 1, duration: 0.3 }, 0);
       if (fills.length) tl.to(fills, { opacity: 1, duration: 0.6, ease: "none", stagger: { each: 0.3 / fills.length } }, paths.length ? "-=0.35" : 0);
@@ -3567,7 +3579,7 @@
     const unlock = () => { side.inert = false; side.classList.remove("is-drawing"); };
     G.set(bits, { clipPath: "inset(0 100% 0 0)", opacity: 0 });
     panelTl = G.timeline({ delay: at, onComplete: () => G.set(bits, { clearProps: "clipPath,opacity" }) })
-      .call(() => sfx("scratch", 0.3), null, 0)
+      .call(() => sfx("pencil", Math.min(2.5, until - at), 0.5), null, 0)
       .to(bits, { opacity: 1, clipPath: "inset(0 0% 0 0)", duration: 0.55, ease: "steps(9)", stagger: Math.max(0.05, (until - at - 0.8) / Math.max(1, bits.length)) });
     // the panel unlocks exactly when the board is ready
     G.delayedCall(until, unlock);
@@ -4178,7 +4190,8 @@
     function drawScene(sc, g, tl, at) {
       const { inks, texts, crs } = sc.items;
       // the caption is written first, the English line then the Vietnamese one
-      tl.call(() => sfx("scratch", 1.2), null, at);
+      tl.call(() => { sfx("scene"); sfx("pencil", 1.4, 0.8); }, null, at);
+      tl.call(() => sfx("pencil", 1.4, 0.6), null, at + 0.7);
       texts.forEach((t, i) => {
         tl.fromTo(t, { strokeDashoffset: 2600, fillOpacity: 0 }, { strokeDashoffset: 0, duration: 1.3, ease: "power1.inOut" }, at + i * 0.35)
           .to(t, { fillOpacity: 1, duration: 0.5 }, at + i * 0.35 + 0.9);
@@ -4191,15 +4204,17 @@
       crs.forEach(({ c, face, act }, i) => {
         const t0 = at + 1 + i * 0.22;
         tl.add(CR.drawIn(c, 0, 0.8), t0);
+        tl.call(() => { if (!cancelled) sfx("appear", i + 1, i % 2); }, null, t0 + 0.75);
         tl.call(() => {
           if (cancelled) return;
+          if (act) sfx("hop", i);
           const l = CR.live(c); storyLives.push(l);
           if (face) CR.setFace(c, face, c.spec.face.beak ? "open" : face === "happy" ? "grin" : face === "hurt" ? "grin" : "open");
           if (act) act(c);
         }, null, t0 + 0.9);
       });
       const drawn = at + Math.max(2.4, 1 + crs.length * 0.22 + 1, texts.length * 0.35 + 1.6);
-      (sc.items.inkActs || []).forEach(([el, act]) => tl.call(() => { if (!cancelled) act(el); }, null, drawn - 0.3));
+      (sc.items.inkActs || []).forEach(([el, act], i) => tl.call(() => { if (!cancelled) { act(el); sfx("doodle", i); } }, null, drawn - 0.3));
       (sc.items.pops || []).forEach(([t, when]) => tl.call(() => sfx("pop"), null, at + when));
       (sc.items.pops || []).forEach(([t, when]) => tl.fromTo(t, { opacity: 0, scale: 0.2, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(3)" }, at + when));
       return drawn;
@@ -4242,6 +4257,14 @@
 
     const tl = G.timeline();
     let at = 0.3;
+    // a sound switch on the story page itself, since the story starts before anyone reaches the panel
+    const sndBtn = document.createElement("button");
+    sndBtn.type = "button";
+    sndBtn.className = "cx-intro__sound";
+    const paintSnd = () => { sndBtn.textContent = SND.on ? "sound: on" : "sound: off"; sndBtn.setAttribute("aria-pressed", String(SND.on)); };
+    paintSnd();
+    sndBtn.addEventListener("click", () => { SND.set(!SND.on); paintSnd(); const main = $("sound"); if (main) main.textContent = SND.on ? "sound: on" : "sound: off"; });
+    box.append(sndBtn);
     SCENES.forEach((scene) => {
       const g = svgEl("g", { class: "st-scene" });
       svg.append(g);
@@ -4262,6 +4285,8 @@
         G.to(box, { opacity: 0, duration: 0.4, onComplete: () => { box.classList.remove("is-on"); box.replaceChildren(skip); G.set(box, { opacity: 1 }); } });
         ok();
       };
+      // the music box plays softly under the whole story
+      for (let t = 0.3, bar = 0; t < at - 1; t += 1.6, bar++) { const b = bar; tl.call(() => { if (!cancelled) sfx("musicbox", b); }, null, t); }
       tl.call(finish, null, at);
       skip.onclick = () => { tl.kill(); finish(); };
       skip.tabIndex = 0;
