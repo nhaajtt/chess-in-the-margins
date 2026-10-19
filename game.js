@@ -71,6 +71,8 @@
   }
   const zOf = (s, cam) => String(Math.round(1000 + s.depth));
   function place(el, sq) {
+    // where the creature stands on the page, which can lag behind the game while its moves play out
+    el.__at = sq;
     const s = spot(sq);
     el.style.width = `${s.w}px`;
     el.style.zIndex = zOf(s);
@@ -338,7 +340,7 @@
     if (!(entrance === "draw" && anim)) { penBusy = false; bakePieces(); }
   }
   // put every creature back on its square; ones in the middle of a move are left alone
-  function relayout() { for (const [sq, el] of els) if (!(G && G.isTweening(el))) place(el, sq); }
+  function relayout() { for (const el of layer.children) if (el.__at != null && !(G && G.isTweening(el))) place(el, el.__at); }
 
   // once a creature is drawn its strokes become pictures (see creatures.js), twice as sharp as the
   // biggest creature on screen so the camera can lean in; a bigger window makes sharper ones
@@ -638,12 +640,13 @@
   /* ---------- moving: every kind travels its own way ---------- */
 
   // The game moves on at once: the board state, the move list, the turn and the clock update immediately,
-  // and the animation plays alongside. If the next move comes before it ends, it is finished on the spot,
-  // so quick players never wait for a creature to finish its little show.
+  // so the next move can be made straight away. The animations keep their full length and play one after
+  // another, in the order the moves were made. Only undo, flip, a new game or a fresh online state
+  // put everything in place at once, since they redraw the board anyway.
   let motion = null;
-  function finishMotion() { if (motion && !motion.done) motion.finishNow(); }
+  const motions = [];
+  function finishMotion() { motions.splice(0).forEach((j) => j.finishNow()); }
   async function playMove(m) {
-    finishMotion();
     const us = game.turn;
     const victimSq = m.flags & E.F_EP ? m.to + (us ? 16 : -16) : m.to;
     const mover = els.get(m.from), victim = m.captured ? els.get(victimSq) : null;
@@ -674,6 +677,7 @@
     job.finishNow = () => {
       if (job.done) return;
       job.done = true;
+      job.shown();
       job.tls.forEach((t) => t.kill());
       const fix = (el, sq) => {
         if (!el) return;
@@ -690,10 +694,14 @@
       if (m.promo && !job.grown) growNow(mover, m);
       paintWorry();
     };
+    const prev = motion;
     motion = job;
+    motions.push(job);
 
-    afterMove(m, san);
+    job.shown = afterMove(m, san);
     job.promise = (async () => {
+      if (prev) await prev.promise;
+      if (job.done) return;
       const t = spot(m.to);
       camTo(t.x, t.y - t.w * 0.4, victim ? 1.14 : 1.05, victim ? 1.4 : 0.2);
       if (victim) await fight(mover, victim, m, victimSq, job);
@@ -703,7 +711,9 @@
       if (m.promo) { await grow(mover, m, job); job.grown = true; }
       if (job.done) return;
       job.done = true;
+      if (motions.includes(job)) motions.splice(motions.indexOf(job), 1);
       paintWorry();
+      job.shown();
     })();
     return job.promise;
   }
@@ -999,27 +1009,35 @@
 
   /* ---------- after each move ---------- */
 
+  // the move list, the clock and the status line change at once; the rest is shown when the creature
+  // has finished playing the move out (the returned function, called once)
   function afterMove(m, san) {
     writeMoves(true);
     labelSquares();
-    paintWorry();
-    paintTurn();
-    whale();
-    nudgePencils();
     const st = game.status();
-    if (st.over) { finish(st); return; }
-    remark(m, st);
-    clockSwitch();
-    statusLine(st, m);
-    if (st.check) {
-      sfx("check");
-      // the camera pushes in on the king in check and the stars on the string shake
-      const k = [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === game.turn);
-      if (k) { const s = spot(k[0]); camTo(s.x, s.y - s.w * 0.4, 1.1, 0.6); }
-      if (anim && document.querySelector(".d-bunting .d-star")) G.fromTo(".d-bunting .d-star", { y: -3 }, { y: 3, duration: 0.07, yoyo: true, repeat: 7, ease: "none", clearProps: "y" });
-    }
-    // the board leans a little toward whoever moves next
-    leanBoard(cssTilt() + (game.turn ? -1 : 1), 0.5);
+    const turn = game.turn;
+    const king = st.check ? [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === turn) : null;
+    if (st.over) { over = st; stopClock(); }
+    else { clockSwitch(); statusLine(st, m); }
+    let shown = false;
+    return () => {
+      if (shown) return;
+      shown = true;
+      paintWorry();
+      paintTurn();
+      whale();
+      nudgePencils();
+      if (st.over) { if (over === st) finish(st); return; }
+      remark(m, st);
+      if (st.check) {
+        sfx("check");
+        // the camera pushes in on the king in check and the stars on the string shake
+        if (king && king[1].isConnected) { const s = spot(king[0]); camTo(s.x, s.y - s.w * 0.4, 1.1, 0.6); }
+        if (anim && document.querySelector(".d-bunting .d-star")) G.fromTo(".d-bunting .d-star", { y: -3 }, { y: 3, duration: 0.07, yoyo: true, repeat: 7, ease: "none", clearProps: "y" });
+      }
+      // the board leans a little toward whoever moves next
+      leanBoard(cssTilt() + (turn ? -1 : 1), 0.5);
+    };
   }
 
   function statusLine(st, m) {
@@ -1252,7 +1270,7 @@
       if (gen !== decoGen) return;
       const ppu = Math.min(4, Math.max(1.5, (window.devicePixelRatio || 1) * 1.5));
       const urls = await CR.flatten(deco, ppu);
-      if (gen !== decoGen) { urls.forEach((u) => URL.revokeObjectURL(u)); return; }
+      if (gen !== decoGen) { urls.forEach((u) => CR.release(u)); return; }
       decoPics.push(...urls);
     });
   }
@@ -1261,7 +1279,7 @@
     if (!W || !H) return;
     decoDrawnAt = [W, H];
     decoGen++;
-    decoPics.forEach((u) => URL.revokeObjectURL(u));
+    decoPics.forEach((u) => CR.release(u));
     decoPics = [];
     decoTweens.forEach((t) => t.kill());
     decoTweens = [];

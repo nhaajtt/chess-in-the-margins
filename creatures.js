@@ -427,6 +427,16 @@
   // pictures instead. The parts, joints and boiling copies stay as they were.
   // Creatures of one kind are drawn with the same seeds, so one set of pictures serves them all.
   const baked = new Map();
+  // a picture is used only once the browser has it loaded and decoded, so a creature is never left
+  // without its lines while a picture is still on its way; the decoded copy is kept so it stays ready
+  const held = new Map();
+  function ready(url) {
+    const im = new Image();
+    im.src = url;
+    return im.decode().then(() => { held.set(url, im); return url; }, (e) => { URL.revokeObjectURL(url); throw e; });
+  }
+  // let a picture go once nothing shows it any more
+  function release(url) { held.delete(url); URL.revokeObjectURL(url); }
   function bakeOne(id, g, ppu) {
     const k = `${id}@${ppu}`;
     if (baked.has(k)) return baked.get(k);
@@ -445,7 +455,7 @@
         const cv = document.createElement("canvas");
         cv.width = W; cv.height = H;
         cv.getContext("2d").drawImage(im, 0, 0, W, H);
-        cv.toBlob((blob) => (blob ? ok({ url: URL.createObjectURL(blob), x, y, w, h }) : no(new Error("bake"))), "image/png");
+        cv.toBlob((blob) => (blob ? ready(URL.createObjectURL(blob)).then((url) => ok({ url, x, y, w, h }), no) : no(new Error("bake"))), "image/png");
       };
       im.onerror = () => no(new Error("bake"));
       im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
@@ -529,7 +539,7 @@
         const cv = document.createElement("canvas");
         cv.width = W; cv.height = H;
         cv.getContext("2d").drawImage(im, 0, 0, W, H);
-        cv.toBlob((blob) => ok(blob ? { url: URL.createObjectURL(blob), x, y, w, h } : null), "image/png");
+        cv.toBlob((blob) => (blob ? ready(URL.createObjectURL(blob)).then((url) => ok({ url, x, y, w, h }), () => ok(null)) : ok(null)), "image/png");
       };
       im.onerror = () => ok(null);
       im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
@@ -558,7 +568,7 @@
     worth.forEach((r, i) => {
       const pic = pics[i];
       const first = r.find((n) => n.nodeType === 1);
-      if (!pic || !first || !first.isConnected) { if (pic) URL.revokeObjectURL(pic.url); return; }
+      if (!pic || !first || !first.isConnected) { if (pic) release(pic.url); return; }
       first.before(el("image", { href: pic.url, x: pic.x, y: pic.y, width: pic.w, height: pic.h, preserveAspectRatio: "none" }));
       r.forEach((n) => n.remove());
       urls.push(pic.url);
@@ -566,5 +576,5 @@
     return urls;
   }
 
-  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, flatten, SPECS };
+  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, flatten, release, SPECS };
 })(typeof window !== "undefined" ? window : this);
