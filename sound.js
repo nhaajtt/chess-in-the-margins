@@ -1,5 +1,7 @@
-/* Every sound in Chess in the margins, made on the spot with the Web Audio API: no sound files.
-   Small toy noises to match the doodles: pops, boings, a pencil scratching, a kazoo of a fanfare.
+/* Every sound in Chess in the margins. Most are recorded effects in /sfx (made with ElevenLabs sound
+   effects, one per action: a wooden sword slash, a wand's sparkle, a wizard's electric zap...); they are
+   fetched only once the player turns sound on. Anything without a recording, or heard before the
+   recordings arrive, is made on the spot with the Web Audio API.
    Off until the player turns it on; the choice is remembered. Browsers only allow audio after a click,
    so the audio context is created on the first use that follows one. */
 (function (root) {
@@ -27,6 +29,41 @@
     if (ctx.state === "suspended") ctx.resume();
     return true;
   }
+  /* ---------- the recordings ---------- */
+
+  const RECORDED = ["hit-1-0", "hit-1-1", "hit-2-0", "hit-2-1", "hit-3-0", "hit-3-1", "hit-4-0", "hit-4-1", "hit-5-0", "hit-5-1", "hit-6-0", "hit-6-1",
+    "whoosh", "boing", "land", "step", "castle", "float", "dizzy", "pop", "check", "grow", "win", "lose", "draw", "spout", "giggle", "neigh", "ufo",
+    "rain", "rewind", "yawn", "shutter", "achoo", "snore", "burp", "pinch", "page", "note", "scratch", "erase", "shootingstar", "confetti", "select", "deselect"];
+  // how loud each kind sits in the mix (the busy ones quieter)
+  const LEVEL = { step: 0.45, scratch: 0.4, erase: 0.45, select: 0.55, deselect: 0.5, note: 0.6, rain: 0.6, ufo: 0.8, win: 0.9, lose: 0.9 };
+  const buffers = new Map();
+  let loading = null;
+  const base = (document.currentScript && document.currentScript.dataset.sfx) || "/sfx/";
+  function loadAll() {
+    if (loading || !ctx) return;
+    loading = Promise.all(RECORDED.map((n) => fetch(`${base}${n}.mp3`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject())).then((a) => new Promise((ok, no) => ctx.decodeAudioData(a, ok, no))).then((b) => buffers.set(n, b)).catch(() => {})));
+  }
+  const lastAt = new Map();
+  function playRecorded(n) {
+    const b = buffers.get(n);
+    if (!b) return false;
+    const t = ctx.currentTime;
+    // the same sound fired twice in a blink plays once
+    if (t - (lastAt.get(n) || -1) < 0.06) return true;
+    lastAt.set(n, t);
+    const src = ctx.createBufferSource();
+    src.buffer = b;
+    // a touch of variety, so repeats never sound like a machine
+    src.playbackRate.value = 0.94 + Math.random() * 0.12;
+    const g = ctx.createGain();
+    g.gain.value = (LEVEL[n] || 0.85) * (0.9 + Math.random() * 0.2);
+    src.connect(g).connect(master);
+    src.start();
+    return true;
+  }
+  // which recording an action plays: fights depend on the kind of creature and its team
+  const recordingFor = (name, args) => (name === "hit" ? `hit-${args[0] || 1}-${args[1] ? 1 : 0}` : name);
+
   const now = () => ctx.currentTime;
   const R = (a, b) => a + Math.random() * (b - a);
 
@@ -155,12 +192,16 @@
     set(v) {
       on = Boolean(v);
       try { localStorage.setItem("chess-sound", on ? "on" : "off"); } catch { /* fine */ }
-      if (on) { ready(); SFX.select(5, 0); }
+      if (on) { ready(); loadAll(); SFX.select(5, 0); }
       else if (ctx) ctx.suspend();
     },
     play(name, ...args) {
-      if (!ready() || !SFX[name]) return;
-      try { SFX[name](...args); } catch { /* a sound never breaks the game */ }
+      if (!ready()) return;
+      loadAll();
+      try {
+        if (playRecorded(recordingFor(name, args))) return;
+        if (SFX[name]) SFX[name](...args);
+      } catch { /* a sound never breaks the game */ }
     },
   };
   root.Sound = Sound;

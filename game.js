@@ -823,7 +823,7 @@
 
   /* ---------- captures get personal: every kind has its own move ---------- */
 
-  const WORDS = { 1: ["BONK!", "GULP!"], 2: ["WHAM!", "WHAM!"], 3: ["THUNK!", "ZAP!"], 4: ["BOOM!", "POW!"], 5: ["ZING!", "PECK!"], 6: ["SLAP!", "SPLAT!"] };
+  const WORDS = { 1: ["BONK!", "GULP!"], 2: ["WHAM!", "WHAM!"], 3: ["SLASH!", "ZAP!"], 4: ["BOOM!", "POW!"], 5: ["ZING!", "PECK!"], 6: ["SLAP!", "SPLAT!"] };
 
   // each returns a timeline that ends at the moment of impact; ctx has screen points of both creatures
   const MOVES = {
@@ -1003,8 +1003,18 @@
     }
     if (c.prop && kind === 5) G.timeline().to(c.prop, { rotation: -60, svgOrigin: o(c.prop), duration: 0.22 }).to(c.prop, { rotation: 40, svgOrigin: o(c.prop), duration: 0.12, ease: "power3.in" }).to(c.prop, { rotation: 0, svgOrigin: o(c.prop), duration: 0.4 });
     if (c.spec.wings) { G.to(c.arms, { scaleY: 0.3, svgOrigin: o(c.arms[0]), duration: 0.05, yoyo: true, repeat: 9 }); return; }
-    // everyone else winds up an arm and swings it
+    // everyone else winds up an arm and swings it (the acorn draws a wooden sword for it)
     const arm = dir > 0 ? c.arms[1] : c.arms[0];
+    if (arm && c.key === "w-bishop") {
+      const [hx, hy] = arm === c.arms[1] ? [80, 61] : [20, 61], sgn = arm === c.arms[1] ? 1 : -1;
+      const sword = svgEl("g", { class: "cx-sword" });
+      const rc = rough.svg(c.svg);
+      sword.append(rc.path(`M ${hx} ${hy} L ${hx + sgn * 4} ${hy - 30} L ${hx + sgn * 7} ${hy - 33} L ${hx + sgn * 6} ${hy - 1} Z`, { stroke: "#7a4a1c", strokeWidth: 1.2, fill: "#d8b07a", fillStyle: "solid", roughness: 0.8, seed: 77 }));
+      sword.append(rc.line(hx - 6, hy + 1, hx + 8 * sgn + (sgn < 0 ? 0 : 0), hy - 2, { stroke: "#7a4a1c", strokeWidth: 3, roughness: 0.5, seed: 78 }));
+      arm.append(sword);
+      G.fromTo(sword, { opacity: 0 }, { opacity: 1, duration: 0.1 });
+      G.delayedCall(1.3, () => G.to(sword, { opacity: 0, duration: 0.3, onComplete: () => sword.remove() }));
+    }
     if (arm) G.timeline().to(arm, { rotation: dir > 0 ? 140 : -140, svgOrigin: o(arm), duration: 0.25, ease: "power2.out" }).to(arm, { rotation: dir > 0 ? -30 : 30, svgOrigin: o(arm), duration: 0.1, ease: "power4.in" }).to(arm, { rotation: 0, svgOrigin: o(arm), duration: 0.4, ease: "back.out(2)" });
     if (c.hat && kind === 1) G.timeline().to(c.hat, { rotation: dir * 20, svgOrigin: o(c.hat), duration: 0.25 }).to(c.hat, { rotation: 0, svgOrigin: o(c.hat), duration: 0.5, ease: "elastic.out(1, 0.4)" });
   }
@@ -1356,6 +1366,7 @@
       const s = document.createElement("b");
       s.style.left = `${R(10, 80)}%`; s.style.top = `${R(4, 40)}%`;
       twinkles.append(s);
+      sfx("shootingstar");
       G.fromTo(s, { x: 0, y: 0, opacity: 0, scaleX: 0.3 }, { x: R(260, 420), y: R(120, 200), opacity: 1, scaleX: 1, duration: 0.9, ease: "power1.in", onComplete: () => G.to(s, { opacity: 0, duration: 0.25, onComplete: () => s.remove() }) });
       shooting = setTimeout(shoot, R(5000, 13000));
     };
@@ -2623,7 +2634,7 @@
       .to([cl, cr], { rotation: (i) => (i ? -30 : 30), svgOrigin: "0 -6", duration: 0.06, yoyo: true, repeat: 1 })
       .call(() => {
         word("PINCH!", s.x + dir * s.w * 0.3, s.y - s.w * 0.9, "#c8452e");
-        sfx("pop");
+        sfx("pinch");
         el.classList.add("is-startled");
         CR.setFace(c, "hurt", "open");
       })
@@ -2673,7 +2684,7 @@
       .set(tongue, { opacity: 0 })
       // chewing, then a burp, then the star is put back on its string as if nothing happened
       .to(pad, { scaleX: 1.12, scaleY: 0.92, svgOrigin: `${fx0} ${fy0 + 10}`, duration: 0.14, yoyo: true, repeat: 5 })
-      .call(() => { sfx("pop"); bubbleDeco("burp!", fx0 + 30, fy0 - 40, job); note(pick(["the frog ate a star. it tasted of lemons", "the frog says the stars are crunchy", "one star missing. the frog knows nothing"])); })
+      .call(() => { sfx("burp"); bubbleDeco("burp!", fx0 + 30, fy0 - 40, job); note(pick(["the frog ate a star. it tasted of lemons", "the frog says the stars are crunchy", "one star missing. the frog knows nothing"])); })
       .to(pad, { scaleY: 1.15, svgOrigin: `${fx0} ${fy0 + 10}`, duration: 0.12, yoyo: true, repeat: 1 })
       .to({}, { duration: 1.2 })
       .set(star, { x: 0, y: 0, opacity: 1, scale: 0, svgOrigin: `${hx} ${hy}` })
@@ -2811,7 +2822,7 @@
       G.timeline({ onComplete: () => t.remove() }).fromTo(t, { opacity: 0, x: 0, y: 0 }, { opacity: 1, duration: 0.3 }).to(t, { x: 12 + i * 2, y: -36, rotation: 15, opacity: 0, duration: 1.6, ease: "sine.out" }, 0.1);
     };
     const tl = job.add(G.timeline({ onComplete: job.end }));
-    tl.call(() => CR.setFace(c, "closed", f.beak ? "none" : "wavy"))
+    tl.call(() => { CR.setFace(c, "closed", f.beak ? "none" : "wavy"); sfx("snore"); })
       .set(ball, { scale: 0.3, svgOrigin: `${nx} ${ny}` });
     [1.6, 0.8, 2.2, 1, 3.2].forEach((sc, i) => {
       tl.call(() => zed(i)).to(ball, { scale: sc, svgOrigin: `${nx} ${ny}`, duration: i % 2 ? 0.8 : 1.1, ease: "sine.inOut" })
@@ -2844,7 +2855,7 @@
     const tl = job.add(G.timeline({ onComplete: job.end }));
     tl.call(() => CR.setFace(c, "closed", "open")).set(say, { opacity: 1 });
     ["ah...", "ahh...", "AHHH..."].forEach((w, i) => tl.call(() => say.say(w)).to(el.__act, { rotation: -6 - i * 3, scaleY: 1.04 + i * 0.02, transformOrigin: "50% 100%", duration: 0.45, ease: "sine.inOut" }).to({}, { duration: 0.15 }));
-    tl.call(() => { say.remove(); word("ACHOO!", s.x, s.y - s.w * 1.0, "#3c4fb8"); sfx("whoosh"); CR.setFace(c, "hurt", "open"); })
+    tl.call(() => { say.remove(); word("ACHOO!", s.x, s.y - s.w * 1.0, "#3c4fb8"); sfx("achoo"); CR.setFace(c, "hurt", "open"); })
       .to(el.__act, { rotation: 16, scaleY: 0.92, duration: 0.08, ease: "power4.in" })
       .to(fly, { y: -70, r: 540, duration: 0.6, ease: "power2.out", onUpdate: flyHat }, "<")
       .to(el.__act, { rotation: 0, scaleY: 1, duration: 0.4, ease: "elastic.out(1, 0.4)" })
