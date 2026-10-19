@@ -338,7 +338,7 @@
         const t0 = drawAt + f * 0.2 + (back ? 0 : 0.08) + (colorOf(el.__p) ? 0.1 : 0);
         CR.drawIn(el.__c, t0, 0.8);
         if (back && !colorOf(el.__p)) G.delayedCall(t0, () => sfx("pencil", 0.6, 0.55));
-        G.delayedCall(t0 + 0.75, () => sfx("appear", f, colorOf(el.__p)));
+        G.delayedCall(t0 + 0.75, () => sfx("appear", f, colorOf(el.__p), el.__p & 7));
       }
       G.delayedCall(drawAt + 8 * 0.2 + 0.85, () => sfx("tada"));
       const done = drawAt + 8 * 0.2 + 0.9;
@@ -751,10 +751,11 @@
     const dist = Math.max(Math.abs((to & 7) - (from & 7)), Math.abs((to >> 4) - (from >> 4)));
     const dir = b.x >= a.x ? 1 : -1;
     const act = el.__act;
+    const sk = el.__p ? el.__p & 7 : kind, ss = el.__p ? colorOf(el.__p) : 0;
     const to2 = (s) => ({ x: s.x - s.w / 2, y: s.y - s.w, scale: s.k });
     const gait = CR.walk(el.__c, kind === 2 ? 0.09 : kind === 6 ? 0.2 : 0.13);
     gait.pause();
-    const tl = G.timeline({ delay, onInterrupt: () => { gait.kill(); CR.settle(el.__c); }, onStart: () => { gait.play(); if (kind === 2) sfx("boing", 2); else if (kind === 4 || kind === 5) sfx("step", kind); }, onComplete: () => { gait.kill(); CR.settle(el.__c); end(); } });
+    const tl = G.timeline({ delay, onInterrupt: () => { gait.kill(); CR.settle(el.__c); }, onStart: () => { gait.play(); sfx("move", sk, ss); }, onComplete: () => { gait.kill(); CR.settle(el.__c); end(); } });
     // anticipation: crouch and lean back
     tl.to(act, { scaleY: 0.8, scaleX: 1.14, rotation: -dir * 6, transformOrigin: "50% 100%", duration: 0.14, ease: "power2.in" });
     const steps = kind === 1 || kind === 3 || kind === 6 ? Math.max(1, dist) : 1;
@@ -787,12 +788,12 @@
         tl.to(act, { scaleY: 1.08, scaleX: 0.94, rotation: kind === 6 ? (i % 2 ? 9 : -9) : 0, duration: 0.08 })
           .to(el, { x: pos.x, scale: mid.k, duration: d, ease: "power1.inOut" }, ">")
           .to(el, { keyframes: [{ y: Math.min(prevY, pos.y) - lift, duration: d / 2, ease: "power2.out" }, { y: pos.y, duration: d / 2, ease: "power2.in" }] }, "<")
-          .call(() => { dust(G.getProperty(el, "x") + mid.w / 2, G.getProperty(el, "y") + mid.w, 2); sfx("step", kind); });
+          .call(() => { dust(G.getProperty(el, "x") + mid.w / 2, G.getProperty(el, "y") + mid.w, 2); sfx("step", sk, ss); });
       }
     }
     // landing: squash, then spring back
     tl.to(act, { scaleY: 0.78, scaleX: 1.18, rotation: 0, duration: 0.07 })
-      .call(() => { dust(b.x, b.y, 3); sfx("land"); })
+      .call(() => { dust(b.x, b.y, 3); sfx("land", sk, ss); })
       .to(act, { scaleY: 1, scaleX: 1, duration: 0.55, ease: "elastic.out(1, 0.4)" });
     return job ? job.track(tl) : play(tl);
   }
@@ -944,9 +945,11 @@
     CR.setFace(mover.__c, "hurt", mover.__c.spec.face.beak ? "open" : "grin");
     CR.setFace(victim.__c, "scared", victim.__c.spec.face.beak ? "open" : "open");
     limbs(mover.__c, kind, dir);
+    sfx("windup", kind, side);
     await job.track((MOVES[kind] || MOVES[1])(ctx));
     if (job.done) return;
     sfx("hit", kind, side);
+    if (victim.__p) sfx("ouch", victim.__p & 7, colorOf(victim.__p));
     // impact: a word, stars, the camera shakes, the neighbours jump
     const hx = t.x, hy = t.y - t.w * 0.55;
     word(pick([WORDS[kind][side], WORDS[kind][side], "POW!"]), hx, hy - t.w * 0.5, side ? "#3c4fb8" : "#e8432e");
@@ -1431,6 +1434,7 @@
     if (nightNow) paintNightSky();
     document.body.classList.toggle("is-night", nightNow);
     nightLayer(nightNow);
+    if (SND.ambience) SND.ambience(nightNow ? "night" : "day");
     decoPics.forEach((u) => CR.release(u));
     decoPics = [];
     decoTweens.forEach((t) => t.kill());

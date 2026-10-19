@@ -1,12 +1,14 @@
-/* Every sound in Chess in the margins, played on a little toy box made with the Web Audio API:
-   a marimba, small bells, a slide whistle, a wood block, soap bubbles and a soft drum. Every note comes
-   from one cheerful five-note scale, so sounds that overlap always fit together; a soft low-pass and a
-   touch of room keep everything round and gentle, never sharp. No voices, no recordings.
+/* Every sound in Chess in the margins. The creatures and the world use real recordings: the owl hoots, the pony
+   neighs and its hooves clop, the bee buzzes, the acorn's wooden sword swishes and clacks on wood, the penguin
+   squeaks, and the beach has its waves (and crickets after dark). The recordings are public domain (CC0) sounds
+   from Freesound, trimmed and levelled; see assets/sfx/CREDITS.md. Music, like the story's music box, is played
+   on a small Web Audio toy box, which also stands in for any recording that has not loaded yet.
    Off until the player turns it on; the choice is remembered. Browsers only allow audio after a click,
    so the audio context is created on the first use that follows one. */
 (function (root) {
   "use strict";
-  let ctx = null, out = null;
+  let ctx = null, out = null, bus = null;
+  const BASE = root.SFX_BASE || "/assets/sfx/";
   let on = false;
   try { on = localStorage.getItem("chess-sound") === "on"; } catch { /* private window */ }
 
@@ -30,6 +32,10 @@
       soft.connect(room).connect(wet).connect(comp);
       comp.connect(master).connect(ctx.destination);
       out = soft;
+      // recordings skip the low-pass: they are already gentle, and the filter would dull them
+      bus = ctx.createGain(); bus.gain.value = 1;
+      bus.connect(dry); bus.connect(room);
+      load();
     }
     if (ctx.state === "suspended") ctx.resume();
     return true;
@@ -124,7 +130,7 @@
 
   // each kind of creature has its own little note, the purple team a step higher
   const HOME = { 1: 7, 2: 9, 3: 8, 4: 5, 5: 11, 6: 6 };
-  const SFX = {
+  const SYNTH = {
     select(kind = 1, side = 0) { const d = HOME[kind] + (side ? 2 : 0); marimba(deg(d), 0, 0.26); marimba(deg(d + 2), 0.07, 0.22); },
     deselect() { marimba(deg(9), 0, 0.14, 0.3); marimba(deg(7), 0.06, 0.12, 0.3); },
     // tiny feet: tick, tock
@@ -225,18 +231,219 @@
     },
   };
 
+
+  /* ---------- the recordings ---------- */
+
+  const FILES = ["achoo", "boing", "bonk", "buzz", "clack-wood", "clop", "crumble", "ding", "dizzy", "erase", "fanfare", "flap",
+    "flap-soft", "gallop", "grass", "grass-hi", "gull", "hoot-far", "jump", "knock", "page", "paper", "peck", "pencil", "pinch", "poof",
+    "pop", "popper", "punch", "rain", "rewind", "ribbit", "sandstep", "scrape", "shutter", "slap", "slide-down", "slide-up", "snore",
+    "snort", "sparkle", "spell", "splash", "squeak", "squeak2", "squish", "star", "swish-wood", "swosh", "tea", "thud", "tiptoe", "trot",
+    "ufo", "v-acorn", "v-bee", "v-bird", "v-ghost", "v-mushroom", "v-owl", "v-penguin", "v-pony", "v-puff", "v-sand", "v-wizard",
+    "v-zebra", "waddle", "wand", "whoosh", "yawn", "yay", "zap", "amb-day", "amb-night"];
+  const buf = {};
+  function load() {
+    FILES.forEach((n) => {
+      fetch(BASE + n + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+        .then((b) => ctx.decodeAudioData(b)).then((d) => { buf[n] = d; if (n.startsWith("amb-")) ambience(); })
+        .catch(() => { /* the toy box covers for it */ });
+    });
+  }
+  // how loud each recording sits in the mix (they are all levelled to the same peak)
+  const LEVEL = { pencil: 0.45, erase: 0.3, paper: 0.35, page: 0.4, grass: 0.32, "grass-hi": 0.3, tiptoe: 0.35, sandstep: 0.4, waddle: 0.35,
+    knock: 0.35, clop: 0.45, trot: 0.4, gallop: 0.4, buzz: 0.3, flap: 0.4, "flap-soft": 0.35, swosh: 0.35, whoosh: 0.35, scrape: 0.35,
+    dizzy: 0.35, sparkle: 0.35, star: 0.3, ding: 0.4, pop: 0.45, jump: 0.35, boing: 0.4, thud: 0.45, gull: 0.18, "hoot-far": 0.16,
+    yay: 0.4, fanfare: 0.45, rain: 0.35, ufo: 0.35, crumble: 0.5, "amb-day": 0.16, "amb-night": 0.16 };
+  // play a recording: when (seconds from now), how loud, how fast (and so how high); a touch of random pitch so repeats differ
+  function S(name, at = 0, vol = 1, rate = 1, from = 0, len = 0) {
+    const b = buf[name];
+    if (!b) return false;
+    const t = T() + at, src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = b;
+    src.playbackRate.value = rate * R(0.96, 1.04);
+    const v = vol * (LEVEL[name] ?? (name.startsWith("v-") ? 0.5 : 0.55));
+    g.gain.setValueAtTime(v, t);
+    if (len) { g.gain.setValueAtTime(v, t + len - 0.04); g.gain.linearRampToValueAtTime(0, t + len); }
+    src.connect(g).connect(bus);
+    src.start(t, from, len ? len + 0.02 : undefined);
+    return true;
+  }
+
+  // who is who: each kind of piece is a different creature on each team, with its own voice and its own feet
+  const WHO = {
+    "1-0": "mushroom", "1-1": "ghost", "2-0": "pony", "2-1": "zebra", "3-0": "acorn", "3-1": "wizard",
+    "4-0": "sand", "4-1": "puff", "5-0": "bee", "5-1": "bird", "6-0": "owl", "6-1": "penguin",
+  };
+  const who = (kind, side) => WHO[`${kind}-${side ? 1 : 0}`] || "mushroom";
+  const voice = (kind, side, at = 0, vol = 1, rate = 1) => S("v-" + who(kind, side), at, vol, rate);
+  // footsteps: tiny pitter-patter, hooves, crunching sand, flapping wings...
+  const FEET = {
+    mushroom: () => S("tiptoe", 0, 0.9, 1.1), ghost: () => S("swosh", 0, 0.5, 0.75), pony: () => S("clop"), zebra: () => S("clop", 0, 1, 0.92),
+    acorn: () => S("grass-hi"), wizard: () => S("grass", 0, 1, 1.05), sand: () => S("sandstep"), puff: () => S("swosh", 0, 0.6, 0.8),
+    bee: () => S("buzz", 0, 0.8), bird: () => S("flap"), owl: () => S("grass", 0, 1.1, 0.85),
+    penguin: () => { S("tiptoe", 0, 0.5, 0.8); return S("waddle", 0, 0.8, R(0.9, 1.1)); },
+  };
+  // getting going: what each creature sounds like as it sets off
+  const SETOFF = {
+    pony: () => S("trot"), zebra: () => S("trot", 0, 1, 0.92), sand: () => { S("sandstep", 0.3, 0.7); return S("scrape"); }, puff: () => S("whoosh", 0, 0.6, 0.8),
+    bee: () => S("buzz", 0, 1, R(0.95, 1.05)), bird: () => { S("flap", 0.25, 0.7); return S("flap"); },
+  };
+  // the wind-up just before a blow
+  const WINDUP = {
+    acorn: () => S("swish-wood"), wizard: () => S("spell", 0, 0.7), bee: () => S("wand", 0, 0.7), pony: () => S("snort", 0, 0.7),
+    zebra: () => S("snort", 0, 0.7, 0.9), owl: () => S("flap", 0, 1, 0.85), bird: () => S("flap"), penguin: () => S("slide-down", 0, 0.45),
+    sand: () => S("scrape", 0, 0.8, 0.8), ghost: () => S("whoosh", 0, 0.5, 0.7), puff: () => S("whoosh", 0, 0.5, 0.9), mushroom: () => S("whoosh"),
+  };
+  // the blow itself
+  const BLOW = {
+    mushroom: () => S("bonk"), ghost: () => S("squish"),
+    pony: () => { voice(2, 0, 0.12, 0.6); return S("punch"); }, zebra: () => { voice(2, 1, 0.12, 0.6); return S("punch"); },
+    acorn: () => { S("knock", 0.09, 0.6, 1.2); return S("clack-wood"); }, wizard: () => S("zap"),
+    sand: () => S("crumble"), puff: () => S("poof"),
+    bee: () => { S("sparkle", 0.02, 0.8); return S("slap", 0, 0.7); },
+    bird: () => { S("peck", 0.08, 0.9); S("peck", 0.16, 0.8); voice(5, 1, 0.25, 0.7); return S("peck"); },
+    owl: () => { S("flap-soft", 0.05, 0.6); return S("slap"); }, penguin: () => { S("thud", 0.05, 0.8); voice(6, 1, 0.2, 0.7); return S("splash", 0, 0.8); },
+  };
+
+  const REAL = {
+    select(kind = 1, side = 0) { return kind === 2 && Math.random() < 0.6 ? S("snort", 0, 0.8, side ? 0.92 : 1) : voice(kind, side); },
+    deselect() { return S("paper", 0, 0.6); },
+    move(kind = 1, side = 0) { const f = SETOFF[who(kind, side)]; return f ? f() : true; },
+    step(kind = 1, side = 0) { return FEET[who(kind, side)](); },
+    land(kind = 0, side = 0) { return kind === 2 ? S("clop", 0, 1.1, side ? 0.92 : 1) : kind === 4 && !side ? S("sandstep") : S("grass", 0, 0.7); },
+    boing() { return S("jump"); },
+    whoosh() { return S("whoosh"); },
+    windup(kind = 1, side = 0) { return WINDUP[who(kind, side)](); },
+    hit(kind = 1, side = 0) { return BLOW[who(kind, side)](); },
+    // the one that was hit cries out in its own voice, a little higher, and goes down with a bump
+    ouch(kind = 1, side = 0) { voice(kind, side, 0.05, 0.8, 1.3); return S("thud", 0.3, 0.8); },
+    dizzy() { return S("dizzy"); },
+    float() { return S("sparkle", 0, 0.7, 1.15); },
+    pop() { return S("pop"); },
+    check() { return S("ding") && S("ding", 0.2, 0.8); },
+    grow() { return S("sparkle") && S("star", 0.3, 0.8); },
+    castle() { return S("scrape") && S("knock", 0.9, 0.5); },
+    win() { return S("fanfare") && S("yay", 0.4, 0.7); },
+    draw() { return S("tea"); },
+    scratch(dur = 0.4) { return this.pencil(dur, 0.8); },
+    erase(dur = 1.3) { return S("erase", 0, 0.9, 1, 0, Math.min(dur, 1.5)); },
+    note() { return this.pencil(0.35, 0.3); },
+    emote(e, side = 0) {
+      if (e === "laugh") return S("squeak2", 0, 0.7, side ? 1.15 : 1) && S("squeak2", 0.16, 0.6, side ? 1.25 : 1.1);
+      if (e === "grr") return S("snort", 0, 0.8, 0.8);
+      if (e === "yawn") return S("yawn");
+      if (e === "love") return S("sparkle", 0, 0.8, 1.1);
+      if (e === "shock") return S("slide-up", 0, 0.4);
+      return S("pop");
+    },
+    tick() { return S("knock", 0, 0.5, 1.3); },
+    spout() { return S("splash"); },
+    giggle() { return S("squeak") && S("squeak", 0.15, 0.8, 1.15); },
+    neigh() { return S("v-pony"); },
+    ufo() { return S("ufo"); },
+    rain(dur = 4) { return S("rain", 0, 1, 1, 0, Math.min(dur, 6.8)); },
+    rewind() { return S("rewind"); },
+    yawn() { return S("yawn"); },
+    shutter() { return S("shutter"); },
+    achoo() { return S("achoo"); },
+    snore() { return S("snore"); },
+    burp() { return S("ribbit"); },
+    pinch() { return S("pinch") && S("pinch", 0.1, 0.8, 1.1); },
+    page() { return S("page"); },
+    confetti() { return S("popper") && S("yay", 0.15, 0.6); },
+    shootingstar() { return S("star", 0, 0.8); },
+    // a real pencil on paper, a different stretch of the recording every time
+    pencil(dur = 0.5, busy = 1) {
+      const b = buf.pencil;
+      if (!b) return false;
+      const len = Math.min(dur, b.duration - 0.05);
+      return S("pencil", 0, 0.6 + busy * 0.5, R(0.95, 1.05), R(0.2, Math.max(0.2, b.duration - len)), len);
+    },
+    // a line ruled on the board: one quick stroke of the pencil
+    line() { const b = buf.pencil; return b ? S("pencil", 0, 0.8, 1.1, R(0.2, b.duration - 0.2), 0.16) : false; },
+    // a creature finishes being drawn and says hello in its own voice
+    appear(i = 0, side = 0, kind = 0) { return kind ? voice(kind, side, 0, 0.45) : S("pop", 0, 0.5); },
+    // a doodle in the margin is done: the pencil lifts off with a flick
+    doodle() { const b = buf.pencil; return b ? S("pencil", 0, 0.6, 1.2, R(0.2, b.duration - 0.12), 0.1) : false; },
+    tada() { return S("sparkle", 0, 0.8); },
+    hop() { return S("jump", 0, 0.7); },
+    scene() { return S("page", 0, 0.8); },
+  };
+  // the toy box has no recordings for these, so they borrow the nearest thing it has
+  SYNTH.move = (kind = 1) => { if (kind === 2) SYNTH.boing(); else if (kind === 4 || kind === 5) SYNTH.step(kind); };
+  SYNTH.windup = () => SYNTH.whoosh();
+  SYNTH.ouch = () => SYNTH.land();
+
+  /* ---------- the beach all around: waves by day; waves and crickets by night; a gull or a far-off owl now and then ---------- */
+  let ambMode = null, ambTimer = 0, ambNow = null, callTimer = 0;
+  function ambience(mode = ambMode) {
+    ambMode = mode;
+    if (!ctx || !on) return;
+    const name = mode ? "amb-" + mode : null;
+    if (ambNow && (ambNow.name !== name || document.hidden)) {
+      const old = ambNow;
+      ambNow = null;
+      old.g.gain.cancelScheduledValues(ctx.currentTime);
+      old.g.gain.setTargetAtTime(0, ctx.currentTime, 0.4);
+      old.srcs.forEach((s) => { try { s.stop(ctx.currentTime + 2); } catch { /* already stopped */ } });
+      clearTimeout(ambTimer); clearTimeout(callTimer);
+    }
+    if (!name || ambNow || document.hidden || !buf[name]) return;
+    const b = buf[name], g = ctx.createGain(), v = LEVEL[name];
+    g.gain.setValueAtTime(0, ctx.currentTime); g.gain.linearRampToValueAtTime(v, ctx.currentTime + 2.5);
+    g.connect(bus);
+    const me = { name, g, srcs: [] }, X = 2;
+    ambNow = me;
+    // the loop: each pass starts while the last one fades, so there is never a seam
+    const pass = () => {
+      if (ambNow !== me) return;
+      const t = ctx.currentTime + 0.05, src = ctx.createBufferSource(), pg = ctx.createGain();
+      src.buffer = b;
+      pg.gain.setValueAtTime(0, t); pg.gain.linearRampToValueAtTime(1, t + X);
+      pg.gain.setValueAtTime(1, t + b.duration - X); pg.gain.linearRampToValueAtTime(0, t + b.duration);
+      src.connect(pg).connect(g); src.start(t); src.stop(t + b.duration + 0.05);
+      me.srcs = me.srcs.slice(-1).concat(src);
+      ambTimer = setTimeout(pass, (b.duration - X) * 1000);
+    };
+    pass();
+    const call = () => {
+      if (ambNow !== me) return;
+      if (mode === "day") S("gull", 0, R(0.6, 1), R(0.9, 1.1)); else S("hoot-far", 0, R(0.6, 1), R(0.95, 1.05));
+      callTimer = setTimeout(call, mode === "day" ? R(14000, 40000) : R(25000, 60000));
+    };
+    callTimer = setTimeout(call, R(5000, 15000));
+  }
+  document.addEventListener("visibilitychange", () => ambience());
+
+  /* ---------- the trombone, for losing ---------- */
+  function trombone(f, at, dur, vol = 0.1, sag = 0) {
+    const t = T() + at, o = osc("sawtooth", f, t, t + dur + 0.1), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = "lowpass"; lp.frequency.setValueAtTime(700, t); lp.frequency.linearRampToValueAtTime(1300, t + 0.08); lp.frequency.linearRampToValueAtTime(800, t + dur);
+    if (sag) o.frequency.linearRampToValueAtTime(f * sag, t + dur);
+    const l = osc("sine", 5.5, t, t + dur + 0.1), lg = ctx.createGain();
+    lg.gain.value = f * 0.012; l.connect(lg).connect(o.frequency);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.06);
+    g.gain.setValueAtTime(vol, t + dur - 0.12); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp).connect(g).connect(out);
+  }
+  SYNTH.lose = () => { trombone(233, 0, 0.42); trombone(220, 0.48, 0.42); trombone(208, 0.96, 0.42); trombone(196, 1.44, 1.1, 0.1, 0.94); };
+
   const Sound = {
     get on() { return on; },
     set(v) {
       on = Boolean(v);
       try { localStorage.setItem("chess-sound", on ? "on" : "off"); } catch { /* fine */ }
-      if (on) { ready(); SFX.select(5, 0); }
-      else if (ctx) ctx.suspend();
+      if (on) { ready(); if (!REAL.select(5, 0)) SYNTH.select(5, 0); ambience(); }
+      else if (ctx) { ambience(null); ctx.suspend(); }
     },
     play(name, ...args) {
-      if (!ready() || !SFX[name]) return;
-      try { SFX[name](...args); } catch { /* a sound never breaks the game */ }
+      if (!ready()) return;
+      try {
+        if (REAL[name] && REAL[name](...args)) return;
+        if (SYNTH[name]) SYNTH[name](...args);
+      } catch { /* a sound never breaks the game */ }
     },
+    // the sound of the place: "day", "night", or null for silence
+    ambience(mode) { ambMode = mode; if (on && ready()) ambience(mode); },
   };
   root.Sound = Sound;
 })(window);
