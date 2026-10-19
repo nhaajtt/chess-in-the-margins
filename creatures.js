@@ -362,6 +362,8 @@
     if (c.hat) t.push(G.fromTo(c.hat, { rotation: -3, svgOrigin: o(c.hat) }, { rotation: 3, svgOrigin: o(c.hat), duration: R(1.1, 1.6), yoyo: true, repeat: -1, ease: "sine.inOut", delay: 0.25 }));
     if (c.head) t.push(G.fromTo(c.head, { rotation: -4, svgOrigin: o(c.head) }, { rotation: 4, svgOrigin: o(c.head), duration: R(1.4, 2), yoyo: true, repeat: -1, ease: "sine.inOut" }));
     if (c.tail) t.push(G.fromTo(c.tail, { rotation: -12, svgOrigin: o(c.tail) }, { rotation: 12, svgOrigin: o(c.tail), duration: R(0.5, 0.8), yoyo: true, repeat: -1, ease: "sine.inOut" }));
+    // holiday things that dangle (a lantern on a stick, a balloon) swing as it moves
+    (c.swing || []).forEach((g, i) => t.push(G.fromTo(g, { rotation: -9, svgOrigin: g.dataset.o }, { rotation: 9, svgOrigin: g.dataset.o, duration: R(0.9, 1.3), yoyo: true, repeat: -1, ease: "sine.inOut", delay: i * 0.2 })));
     if (c.prop) t.push(G.fromTo(c.prop, { rotation: -6, svgOrigin: o(c.prop) }, { rotation: 6, svgOrigin: o(c.prop), duration: R(1, 1.5), yoyo: true, repeat: -1, ease: "sine.inOut" }));
     // now and then shuffle the feet (horses paw the ground)
     if (c.legs.length) t.push(G.timeline({ repeat: -1, repeatDelay: R(2.5, 6), delay: R(0, 3) })
@@ -622,5 +624,5 @@
     return urls;
   }
 
-  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, flatten, release, SPECS };
+  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, flatten, release, pen, E, INK, SPECS };
 })(typeof window !== "undefined" ? window : this);

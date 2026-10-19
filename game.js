@@ -276,9 +276,13 @@
     el.append(act);
     el.__act = act; el.__body = body; el.__p = p; el.__c = c;
     layer.append(el);
+    dressUp(c);
     if (anim) wake(el);
     return el;
   }
+
+  const TH = window.Themes || { id: null };
+  function dressUp(c) { if (TH.id) c.swing = TH.dress(c) || []; }
 
   // the creature's own life (breathing, swaying, blinking, looking around) comes from creatures.js
   // the creatures' idle life (breathing, swaying, fidgeting) runs on its own clock, moved on every frame
@@ -777,6 +781,7 @@
   function growNow(el, m) {
     const fresh = CR.make(m.promo);
     el.__c.svg.replaceWith(fresh.svg);
+    dressUp(fresh);
     sleep(el);
     el.__c = fresh; el.__p = m.promo; el.dataset.key = key(m.promo);
     if (anim) wake(el);
@@ -785,7 +790,7 @@
   async function grow(el, m, job) {
     sfx("grow");
     const s = spot(m.to);
-    if (!anim) { const fresh = CR.make(m.promo); el.__c.svg.replaceWith(fresh.svg); el.__c = fresh; el.__p = m.promo; return; }
+    if (!anim) { const fresh = CR.make(m.promo); el.__c.svg.replaceWith(fresh.svg); dressUp(fresh); el.__c = fresh; el.__p = m.promo; return; }
     burst(s.x, s.y - s.w * 0.5, 10);
     const track = job ? job.track : play;
     await track(G.timeline()
@@ -2181,6 +2186,11 @@
       }
     }
     whale(true);
+    if (TH.id) {
+      const mover = (cls, draw) => { const g = svgEl("g", { class: cls }); draw(g); deco.append(g); return g; };
+      const [sx, sy] = sunAt.split(" ").map(Number);
+      TH.decorate({ deco, W, H, narrow, rc: rough.svg(deco), doodle, mover, loop, anim, G, svgEl, beach: beachKit, sun: [sx, sy, narrow ? 16 : 30] });
+    }
     if (anim) flattenDeco(0.3);
   }
   let pencilsAt = null;
@@ -2426,7 +2436,7 @@
       leanBoard(cssTilt(), 0.5);
     }
     drawMarks(); writeMoves(); whale();
-    note("every piece is a creature");
+    note(TH.note || "every piece is a creature");
     startClock();
     statusLine(game.status());
     if (mode === "cpu" && game.turn !== human) setTimeout(computer, ready * 1000);

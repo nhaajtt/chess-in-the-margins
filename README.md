@@ -74,6 +74,27 @@ scuttles along the sand, and a frog catches flies from a lily pad. A rain cloud 
 with every drop. There is also a spider on a thread, a hot-air balloon, a paper aeroplane looping the loop, a snail
 that takes the whole game to cross the page, and a cat asleep at the bottom.
 
+Leave the board alone for a few seconds and a mushroom gets bored, wanders off to the beach to play, and gets the fright
+of its life when a dolphin leaps out of the sea next to it.
+
+### Holidays
+
+Around a holiday the creatures dress up and the margins fill with that holiday's doodles. The chess signs always stay
+in sight: hats go on the pawns, the others get scarves, capes and bows.
+
+| When | The creatures | The page |
+|---|---|---|
+| Halloween | witch hats, bat wings, capes | bats, flickering jack-o'-lanterns, a cobweb, a witch on her broom |
+| Christmas | Santa hats, antlers, striped scarves | snow, a tree with blinking baubles, a waving snowman, fairy lights |
+| New Year | party hats and gold bow ties | fireworks, confetti, a banner with the year |
+| Lunar New Year (Tết) | nón lá and red-and-gold scarves | red lanterns, an apricot branch dropping petals, firecrackers, a lion dance |
+| Mid-Autumn (Trung Thu) | star lanterns on sticks | the full moon with Cuội under his tree, lanterns drifting up, mooncakes |
+| Valentine's Day | heart balloons and pink bows | rising hearts, a flying cupid |
+| April Fools' | fake glasses, nose and moustache for everyone | the sun in disguise too |
+
+Each one starts a day or two before the holiday and lasts a day or two after. Add `?theme=halloween` (or `christmas`,
+`newyear`, `tet`, `midautumn`, `valentine`, `aprilfools`) to the address to see one on any day.
+
 <table>
 <tr>
 <td width="62%"><img src="media/fight.png" alt="A game in progress with a POW bubble, the move list, the sticky note and the beach"></td>
