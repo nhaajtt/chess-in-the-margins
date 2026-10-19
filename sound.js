@@ -1,12 +1,12 @@
-/* Every sound in Chess in the margins. Most are recorded effects in /sfx (made with ElevenLabs sound
-   effects, one per action: a wooden sword slash, a wand's sparkle, a wizard's electric zap...); they are
-   fetched only once the player turns sound on. Anything without a recording, or heard before the
-   recordings arrive, is made on the spot with the Web Audio API.
+/* Every sound in Chess in the margins, played on a little toy box made with the Web Audio API:
+   a marimba, small bells, a slide whistle, a wood block, soap bubbles and a soft drum. Every note comes
+   from one cheerful five-note scale, so sounds that overlap always fit together; a soft low-pass and a
+   touch of room keep everything round and gentle, never sharp. No voices, no recordings.
    Off until the player turns it on; the choice is remembered. Browsers only allow audio after a click,
    so the audio context is created on the first use that follows one. */
 (function (root) {
   "use strict";
-  let ctx = null, master = null, noiseBuf = null;
+  let ctx = null, out = null;
   let on = false;
   try { on = localStorage.getItem("chess-sound") === "on"; } catch { /* private window */ }
 
@@ -16,174 +16,188 @@
       const AC = root.AudioContext || root.webkitAudioContext;
       if (!AC) return false;
       ctx = new AC();
-      master = ctx.createGain();
-      master.gain.value = 0.55;
-      // a gentle compressor so a fight with many sounds at once never gets harsh
+      // the chain: everything -> soft low-pass -> a little room -> gentle compressor -> speakers
+      const soft = ctx.createBiquadFilter();
+      soft.type = "lowpass"; soft.frequency.value = 4200; soft.Q.value = 0.5;
+      const room = ctx.createConvolver();
+      room.buffer = roomTail(1.3);
+      const wet = ctx.createGain(); wet.gain.value = 0.22;
+      const dry = ctx.createGain(); dry.gain.value = 0.9;
       const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -18; comp.ratio.value = 4;
-      master.connect(comp).connect(ctx.destination);
-      noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-      const d = noiseBuf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      comp.threshold.value = -20; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.2;
+      const master = ctx.createGain(); master.gain.value = 0.8;
+      soft.connect(dry).connect(comp);
+      soft.connect(room).connect(wet).connect(comp);
+      comp.connect(master).connect(ctx.destination);
+      out = soft;
     }
     if (ctx.state === "suspended") ctx.resume();
     return true;
   }
-  /* ---------- the recordings ---------- */
-
-  const RECORDED = ["hit-1-0", "hit-1-1", "hit-2-0", "hit-2-1", "hit-3-0", "hit-3-1", "hit-4-0", "hit-4-1", "hit-5-0", "hit-5-1", "hit-6-0", "hit-6-1",
-    "whoosh", "boing", "land", "step", "castle", "float", "dizzy", "pop", "check", "grow", "win", "lose", "draw", "spout", "giggle", "neigh", "ufo",
-    "rain", "rewind", "yawn", "shutter", "achoo", "snore", "burp", "pinch", "page", "note", "scratch", "erase", "shootingstar", "confetti", "select", "deselect"];
-  // how loud each kind sits in the mix (the busy ones quieter)
-  const LEVEL = { step: 0.45, scratch: 0.4, erase: 0.45, select: 0.55, deselect: 0.5, note: 0.6, rain: 0.6, ufo: 0.8, win: 0.9, lose: 0.9 };
-  const buffers = new Map();
-  let loading = null;
-  const base = (document.currentScript && document.currentScript.dataset.sfx) || "/sfx/";
-  function loadAll() {
-    if (loading || !ctx) return;
-    loading = Promise.all(RECORDED.map((n) => fetch(`${base}${n}.mp3`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject())).then((a) => new Promise((ok, no) => ctx.decodeAudioData(a, ok, no))).then((b) => buffers.set(n, b)).catch(() => {})));
-  }
-  const lastAt = new Map();
-  function playRecorded(n) {
-    const b = buffers.get(n);
-    if (!b) return false;
-    const t = ctx.currentTime;
-    // the same sound fired twice in a blink plays once
-    if (t - (lastAt.get(n) || -1) < 0.06) return true;
-    lastAt.set(n, t);
-    const src = ctx.createBufferSource();
-    src.buffer = b;
-    // a touch of variety, so repeats never sound like a machine
-    src.playbackRate.value = 0.94 + Math.random() * 0.12;
-    const g = ctx.createGain();
-    g.gain.value = (LEVEL[n] || 0.85) * (0.9 + Math.random() * 0.2);
-    src.connect(g).connect(master);
-    src.start();
-    return true;
-  }
-  // which recording an action plays: fights depend on the kind of creature and its team
-  const recordingFor = (name, args) => (name === "hit" ? `hit-${args[0] || 1}-${args[1] ? 1 : 0}` : name);
-
-  const now = () => ctx.currentTime;
-  const R = (a, b) => a + Math.random() * (b - a);
-
-  // one note: a waveform gliding from f0 to f1 with a short envelope
-  function tone({ type = "sine", f0 = 440, f1 = f0, at = 0, dur = 0.15, vol = 0.3, attack = 0.005, curve = "exp", vibrato = 0 }) {
-    const t = now() + at;
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(f0, t);
-    if (f1 !== f0) curve === "exp" ? o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur) : o.frequency.linearRampToValueAtTime(f1, t + dur);
-    if (vibrato) {
-      const lfo = ctx.createOscillator(), lg = ctx.createGain();
-      lfo.frequency.value = 6; lg.gain.value = vibrato;
-      lfo.connect(lg).connect(o.frequency);
-      lfo.start(t); lfo.stop(t + dur + 0.05);
+  // a short, dark room: decaying noise with the highs taken out
+  function roomTail(sec) {
+    const n = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, n, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = b.getChannelData(c);
+      let lp = 0;
+      for (let i = 0; i < n; i++) { lp += (Math.random() * 2 - 1 - lp) * 0.25; d[i] = lp * Math.pow(1 - i / n, 3); }
     }
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + attack);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(master);
-    o.start(t); o.stop(t + dur + 0.05);
+    return b;
   }
-  // a burst of filtered noise: dust, whooshes, crayon on paper
-  function noise({ at = 0, dur = 0.2, vol = 0.2, type = "bandpass", f0 = 1200, f1 = f0, q = 1, attack = 0.01 }) {
-    const t = now() + at;
-    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-    src.buffer = noiseBuf;
-    src.playbackRate.value = R(0.8, 1.2);
-    f.type = type; f.Q.value = q;
-    f.frequency.setValueAtTime(f0, t);
-    if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + attack);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f).connect(g).connect(master);
-    src.start(t, R(0, 0.5)); src.stop(t + dur + 0.05);
-  }
+  const R = (a, b) => a + Math.random() * (b - a);
+  const T = () => ctx.currentTime + 0.01;
 
-  // each kind of creature has its own voice, so the two teams and the six kinds sound different
-  const VOICE = { 1: 520, 2: 330, 3: 440, 4: 260, 5: 660, 6: 300 };
+  /* ---------- the scale: C major pentatonic, from low to high ---------- */
+  const NOTE = (() => { const steps = [0, 2, 4, 7, 9], out2 = []; for (let o = 0; o < 4; o++) steps.forEach((s) => out2.push(130.81 * Math.pow(2, o + s / 12))); return out2; })();
+  // degree: 0 is a low C, 5 the C above it, and so on
+  const deg = (d) => NOTE[Math.max(0, Math.min(NOTE.length - 1, Math.round(d)))];
+
+  /* ---------- the instruments ---------- */
+
+  function env(g, at, peak, attack, decay) {
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + attack + decay);
+  }
+  function osc(type, f, at, end) { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, at); o.start(at); o.stop(end); return o; }
+  // marimba: a round fundamental and a quick bright partial
+  function marimba(f, at = 0, vol = 0.3, decay = 0.45) {
+    const t = T() + at;
+    const g = ctx.createGain(); env(g, t, vol, 0.004, decay); g.connect(out);
+    osc("sine", f, t, t + decay + 0.05).connect(g);
+    const g2 = ctx.createGain(); env(g2, t, vol * 0.25, 0.002, decay * 0.25); g2.connect(out);
+    osc("sine", f * 4, t, t + decay * 0.3 + 0.05).connect(g2);
+  }
+  // a little bell: sine partials that ring
+  function bell(f, at = 0, vol = 0.16, decay = 1.1) {
+    const t = T() + at;
+    [[1, 1], [2.76, 0.35], [5.4, 0.12]].forEach(([k, v]) => {
+      const g = ctx.createGain(); env(g, t, vol * v, 0.003, decay / k); g.connect(out);
+      osc("sine", f * k, t, t + decay / k + 0.05).connect(g);
+    });
+  }
+  // wood block: a knock with no ring
+  function wood(f, at = 0, vol = 0.22) {
+    const t = T() + at;
+    const g = ctx.createGain(); env(g, t, vol, 0.001, 0.07); g.connect(out);
+    const o = osc("sine", f * 1.6, t, t + 0.1); o.frequency.exponentialRampToValueAtTime(f, t + 0.03); o.connect(g);
+  }
+  // slide whistle: a pure tone that glides, with a little wobble
+  function whistle(f0, f1, at = 0, dur = 0.4, vol = 0.12, wobble = 0) {
+    const t = T() + at;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.03);
+    g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.connect(out);
+    const o = osc("sine", f0, t, t + dur + 0.05);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    if (wobble) { const l = osc("sine", 7, t, t + dur + 0.05); const lg = ctx.createGain(); lg.gain.value = wobble; l.connect(lg).connect(o.frequency); }
+    o.connect(g);
+  }
+  // soap bubble: a quick upward blip
+  function bubble(f = 500, at = 0, vol = 0.18) {
+    const t = T() + at;
+    const g = ctx.createGain(); env(g, t, vol, 0.004, 0.09); g.connect(out);
+    const o = osc("sine", f, t, t + 0.12); o.frequency.exponentialRampToValueAtTime(f * 2.4, t + 0.08); o.connect(g);
+  }
+  // soft drum: a pillowy thump
+  function pomf(f = 140, at = 0, vol = 0.32, decay = 0.22) {
+    const t = T() + at;
+    const g = ctx.createGain(); env(g, t, vol, 0.004, decay); g.connect(out);
+    const o = osc("sine", f, t, t + decay + 0.05); o.frequency.exponentialRampToValueAtTime(f * 0.45, t + decay); o.connect(g);
+  }
+  // shaker: a breath of soft noise, for paper, rain and wind
+  let noiseBuf = null;
+  function shaker(at = 0, dur = 0.12, vol = 0.05, freq = 2600) {
+    if (!noiseBuf) { noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const t = T() + at;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 0.9;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp).connect(g).connect(out);
+    src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
+  }
+  const run = (degrees, at = 0, gap = 0.07, play = marimba, vol) => degrees.forEach((d, i) => play(deg(d), at + i * gap, vol));
+
+  /* ---------- what each action sounds like ---------- */
+
+  // each kind of creature has its own little note, the purple team a step higher
+  const HOME = { 1: 7, 2: 9, 3: 8, 4: 5, 5: 11, 6: 6 };
   const SFX = {
-    // picking a creature up: a happy little pop, higher for the purple team
-    select(kind = 1, side = 0) { const f = VOICE[kind] * (side ? 1.25 : 1); tone({ type: "triangle", f0: f, f1: f * 1.6, dur: 0.09, vol: 0.28 }); tone({ type: "sine", f0: f * 2, f1: f * 2.4, at: 0.05, dur: 0.08, vol: 0.12 }); },
-    // putting it down again
-    deselect() { tone({ type: "triangle", f0: 500, f1: 280, dur: 0.12, vol: 0.18 }); noise({ dur: 0.12, vol: 0.08, f0: 3000, f1: 800, q: 0.8 }); },
-    // the oranges popping up
-    hint(i = 0) { tone({ type: "sine", f0: 900 + i * 40, f1: 1300 + i * 40, at: i * 0.035, dur: 0.05, vol: 0.06 }); },
-    // a step or a hop; knights gallop, rooks slide, queens flutter, kings waddle
+    select(kind = 1, side = 0) { const d = HOME[kind] + (side ? 2 : 0); marimba(deg(d), 0, 0.26); marimba(deg(d + 2), 0.07, 0.22); },
+    deselect() { marimba(deg(9), 0, 0.14, 0.3); marimba(deg(7), 0.06, 0.12, 0.3); },
+    // tiny feet: tick, tock
     step(kind = 1) {
-      if (kind === 4) { noise({ dur: 0.35, vol: 0.18, type: "lowpass", f0: 900, f1: 300, q: 0.5, attack: 0.05 }); return; }
-      if (kind === 5) { for (let i = 0; i < 5; i++) noise({ at: i * 0.05, dur: 0.04, vol: 0.06, f0: 2500, q: 2 }); tone({ type: "sine", f0: 700, f1: 1100, dur: 0.25, vol: 0.06, vibrato: 30 }); return; }
-      const f = kind === 6 ? 140 : kind === 2 ? 220 : 180;
-      tone({ type: "sine", f0: f * 2, f1: f, dur: 0.09, vol: 0.22 });
-      noise({ dur: 0.05, vol: 0.06, type: "lowpass", f0: 600, q: 0.6 });
+      if (kind === 4) { shaker(0, 0.3, 0.05, 900); wood(deg(3), 0.22, 0.12); return; }
+      if (kind === 5) { bubble(deg(10), 0, 0.08); bubble(deg(12), 0.08, 0.06); return; }
+      const d = kind === 6 ? 4 : kind === 2 ? 8 : 6;
+      wood(deg(d), 0, 0.16); wood(deg(d + 1), 0.11, 0.12);
     },
-    // a jump: boing
-    boing(kind = 2) { const f = kind === 2 ? 180 : 240; tone({ type: "triangle", f0: f, f1: f * 2.4, dur: 0.28, vol: 0.2, vibrato: 18, curve: "lin" }); },
-    // landing on the paper
-    land() { tone({ type: "sine", f0: 160, f1: 70, dur: 0.12, vol: 0.3 }); noise({ dur: 0.1, vol: 0.08, type: "lowpass", f0: 900, q: 0.7 }); },
-    // the run-up before a fight
-    whoosh() { noise({ dur: 0.35, vol: 0.18, f0: 400, f1: 2400, q: 1.2, attack: 0.15 }); },
-    // the hit itself, different for each move
+    boing() { whistle(deg(7), deg(14), 0, 0.22, 0.1); whistle(deg(14), deg(9), 0.22, 0.25, 0.08); },
+    land() { pomf(120, 0, 0.22, 0.16); },
+    whoosh() { whistle(deg(9), deg(16), 0, 0.28, 0.07, 6); shaker(0, 0.28, 0.025, 1800); },
+    // the fights: comic and soft, each creature its own way
     hit(kind = 1, side = 0) {
-      noise({ dur: 0.18, vol: 0.32, type: "lowpass", f0: 2000, f1: 200, q: 0.8 });
-      if (kind === 1 && side) { tone({ type: "sine", f0: 300, f1: 80, dur: 0.4, vol: 0.3 }); tone({ type: "square", f0: 120, f1: 60, at: 0.25, dur: 0.15, vol: 0.06 }); return; } // gulp
-      if (kind === 3 && side) { for (let i = 0; i < 6; i++) tone({ type: "sawtooth", f0: R(800, 2200), f1: R(200, 600), at: i * 0.03, dur: 0.07, vol: 0.06 }); return; } // zap
-      if (kind === 4 && !side) { tone({ type: "sine", f0: 90, f1: 40, dur: 0.5, vol: 0.45 }); return; } // boom
-      if (kind === 5) { [1320, 1760, 2093].forEach((f, i) => tone({ type: "sine", f0: f, at: i * 0.05, dur: 0.25, vol: 0.08 })); return; } // zing of stars
-      tone({ type: "square", f0: 220, f1: 110, dur: 0.12, vol: 0.12 });
-      tone({ type: "triangle", f0: 880, f1: 330, at: 0.02, dur: 0.18, vol: 0.18 }); // bonk
+      const H = {
+        "1-0": () => { wood(deg(4), 0, 0.3); whistle(deg(10), deg(15), 0.04, 0.18, 0.08); },                       // mushroom: bonk!
+        "1-1": () => { pomf(220, 0, 0.26, 0.18); whistle(deg(8), deg(4), 0.02, 0.22, 0.08, 10); },                  // blob: squish
+        "2-0": () => { whistle(deg(12), deg(5), 0, 0.16, 0.09); pomf(110, 0.14, 0.32); wood(deg(9), 0.3, 0.14); wood(deg(8), 0.4, 0.12); }, // pony: kick, clip-clop
+        "2-1": () => { whistle(deg(13), deg(6), 0, 0.16, 0.09); pomf(110, 0.14, 0.32); wood(deg(10), 0.3, 0.14); wood(deg(9), 0.4, 0.12); },
+        "3-0": () => { whistle(deg(16), deg(7), 0, 0.14, 0.1); wood(deg(12), 0.13, 0.22); bell(deg(14), 0.15, 0.08, 0.5); }, // acorn: swish... clack, with a glint
+        "3-1": () => { for (let i = 0; i < 7; i++) bell(deg(i % 2 ? 12 : 14), i * 0.035, 0.07, 0.25); whistle(deg(11), deg(16), 0, 0.25, 0.05, 40); }, // wizard: a fizzing sparkly zap
+        "4-0": () => { pomf(90, 0, 0.4, 0.35); run([9, 7, 5, 4, 2], 0.08, 0.05, marimba, 0.12); },                 // sandcastle: kaboom, and the sand trickles down
+        "4-1": () => { pomf(160, 0, 0.24, 0.2); bubble(deg(9), 0.05); bubble(deg(11), 0.12); },                   // puffball: poof
+        "5-0": () => { run([10, 12, 14, 15, 17], 0, 0.05, bell, 0.09); },                                             // bee queen: the wand twinkles
+        "5-1": () => { wood(deg(14), 0, 0.2); wood(deg(14), 0.09, 0.18); whistle(deg(13), deg(15), 0.2, 0.15, 0.06); }, // crested bird: peck peck, tweet
+        "6-0": () => { shaker(0, 0.14, 0.06, 1400); pomf(260, 0.1, 0.28, 0.1); },                                     // owl: a wing flap, pap!
+        "6-1": () => { whistle(deg(12), deg(4), 0, 0.5, 0.09); pomf(150, 0.45, 0.26); },                              // penguin: wheee... flop
+      };
+      (H[`${kind}-${side ? 1 : 0}`] || H["1-0"])();
     },
-    // the loser going cross-eyed, then floating away
-    dizzy() { tone({ type: "sine", f0: 1200, f1: 600, dur: 0.6, vol: 0.06, vibrato: 60, curve: "lin" }); },
-    float() { tone({ type: "sine", f0: 400, f1: 900, dur: 0.7, vol: 0.08, vibrato: 12 }); },
-    // a hat flying off
-    pop() { tone({ type: "sine", f0: 600, f1: 1400, dur: 0.06, vol: 0.2 }); },
-    // check: a little alarm bell
-    check() { [0, 0.16].forEach((at) => { tone({ type: "triangle", f0: 1568, at, dur: 0.35, vol: 0.14 }); tone({ type: "sine", f0: 3136, at, dur: 0.2, vol: 0.05 }); }); },
-    // promotion: a rising sparkle
-    grow() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ type: "triangle", f0: f, at: i * 0.07, dur: 0.3, vol: 0.1 })); },
-    // castling: two quick hops
-    castle() { this.boing(4); tone({ type: "triangle", f0: 300, f1: 600, at: 0.15, dur: 0.15, vol: 0.12 }); },
-    // the end: a kazoo fanfare for a win, a sad trombone for the other side, a lullaby for a draw
-    win() { [[523, 0], [659, 0.15], [784, 0.3], [1047, 0.45], [784, 0.62], [1047, 0.75]].forEach(([f, at], i) => tone({ type: "sawtooth", f0: f, at, dur: i === 5 ? 0.6 : 0.16, vol: 0.07, vibrato: 8 })); },
-    lose() { [[392, 0], [370, 0.3], [349, 0.6]].forEach(([f, at]) => tone({ type: "sawtooth", f0: f, at, dur: 0.3, vol: 0.06 })); tone({ type: "sawtooth", f0: 330, f1: 300, at: 0.9, dur: 0.9, vol: 0.06, vibrato: 10 }); },
-    draw() { [[659, 0], [523, 0.35], [587, 0.7], [392, 1.05]].forEach(([f, at]) => tone({ type: "sine", f0: f, at, dur: 0.5, vol: 0.08 })); },
-    // writing and drawing: a pencil scratching across paper
-    scratch(dur = 0.4, at = 0) { for (let i = 0; i < Math.max(1, Math.round(dur / 0.07)); i++) noise({ at: at + i * 0.07 + R(0, 0.02), dur: 0.06, vol: 0.05, f0: R(3500, 5500), q: 3 }); },
-    // the eraser rubbing a scene out
-    erase(dur = 1.3) { for (let i = 0; i < Math.round(dur / 0.11); i++) noise({ at: i * 0.11, dur: 0.1, vol: 0.07, type: "lowpass", f0: R(700, 1100), q: 0.6, attack: 0.03 }); },
-    // the sticky note slapped on
-    note() { noise({ dur: 0.06, vol: 0.12, type: "highpass", f0: 1800, q: 0.7 }); },
-    // emotes: a word from a king
+    dizzy() { for (let i = 0; i < 6; i++) bell(deg(i % 2 ? 13 : 15), i * 0.12, 0.06, 0.35); },
+    float() { run([7, 9, 10, 12], 0, 0.12, bell, 0.07); },
+    pop() { bubble(deg(9), 0, 0.3); },
+    check() { bell(deg(12), 0, 0.12); bell(deg(12), 0.18, 0.11); },
+    grow() { run([5, 7, 8, 9, 10, 12, 14, 15], 0, 0.06, marimba, 0.16); bell(deg(15), 0.5, 0.1); },
+    castle() { shaker(0, 0.35, 0.05, 800); wood(deg(3), 0.3, 0.16); wood(deg(5), 0.4, 0.14); },
+    win() { [[5, 0], [7, 0.13], [9, 0.26], [10, 0.39], [9, 0.55], [10, 0.68], [12, 0.82]].forEach(([d, at], i) => marimba(deg(d), at, 0.24, i === 6 ? 0.9 : 0.4)); bell(deg(15), 0.82, 0.1, 1.4); },
+    lose() { whistle(deg(9), deg(7), 0, 0.35, 0.09, 5); whistle(deg(8), deg(6), 0.4, 0.35, 0.09, 5); whistle(deg(7), deg(3), 0.8, 0.8, 0.09, 8); },
+    draw() { bell(deg(14), 0, 0.09, 0.6); bell(deg(15), 0.16, 0.09, 0.6); },
+    scratch(dur = 0.4, at = 0) { for (let i = 0; i < Math.max(1, Math.round(dur / 0.16)); i++) shaker(at + i * 0.16, 0.12, 0.018, R(2200, 3000)); },
+    erase(dur = 1.3) { for (let i = 0; i < Math.round(dur / 0.2); i++) shaker(i * 0.2, 0.18, 0.022, 1100); },
+    note() { wood(deg(10), 0, 0.12); },
     emote(e, side = 0) {
-      const b = side ? 1.2 : 1;
-      if (e === "laugh") [0, 0.12, 0.24].forEach((at) => tone({ type: "square", f0: 520 * b, f1: 420 * b, at, dur: 0.09, vol: 0.06 }));
-      else if (e === "grr") tone({ type: "sawtooth", f0: 110 * b, f1: 90 * b, dur: 0.4, vol: 0.1, vibrato: 25 });
-      else if (e === "yawn") tone({ type: "sine", f0: 500 * b, f1: 200 * b, dur: 0.8, vol: 0.1, curve: "lin" });
-      else if (e === "love") [659, 880].forEach((f, i) => tone({ type: "sine", f0: f * b, at: i * 0.1, dur: 0.3, vol: 0.1 }));
-      else if (e === "shock") tone({ type: "triangle", f0: 400 * b, f1: 1400 * b, dur: 0.18, vol: 0.14 });
-      else [0, 0.1].forEach((at, i) => tone({ type: "triangle", f0: (i ? 784 : 659) * b, at, dur: 0.14, vol: 0.12 }));
+      const b = side ? 2 : 0;
+      if (e === "laugh") run([10 + b, 9 + b, 10 + b, 9 + b], 0, 0.09, marimba, 0.14);
+      else if (e === "grr") whistle(deg(4 + b), deg(3 + b), 0, 0.4, 0.08, 12);
+      else if (e === "yawn") whistle(deg(9 + b), deg(4 + b), 0, 0.8, 0.07);
+      else if (e === "love") { bell(deg(10 + b), 0, 0.1); bell(deg(12 + b), 0.12, 0.1); }
+      else if (e === "shock") whistle(deg(7 + b), deg(14 + b), 0, 0.18, 0.09);
+      else run([7 + b, 9 + b], 0, 0.1, marimba, 0.16);
     },
-    // the clock when time is short
-    tick() { tone({ type: "square", f0: 1800, dur: 0.02, vol: 0.04 }); },
-    // the frog's tongue, the whale's spout: the page's own little noises
-    spout() { noise({ dur: 0.5, vol: 0.06, type: "highpass", f0: 1500, f1: 4000, q: 0.5, attack: 0.08 }); },
-    // a poked creature giggles
-    giggle() { [0, 0.09, 0.18, 0.27].forEach((at, i) => tone({ type: "triangle", f0: 900 - i * 60, f1: 1200 - i * 60, at, dur: 0.06, vol: 0.09 })); },
-    // a pony asks a question
-    neigh() { tone({ type: "sawtooth", f0: 700, f1: 380, dur: 0.55, vol: 0.05, vibrato: 30, curve: "lin" }); },
-    ufo() { tone({ type: "sine", f0: 300, f1: 900, dur: 1.4, vol: 0.06, vibrato: 40, curve: "lin" }); tone({ type: "sine", f0: 905, f1: 305, at: 1.4, dur: 1.2, vol: 0.05, vibrato: 40, curve: "lin" }); },
-    rain(dur = 4) { for (let i = 0; i < Math.round(dur / 0.08); i++) noise({ at: i * 0.08, dur: 0.07, vol: 0.03, type: "highpass", f0: R(2500, 6000), q: 0.6 }); },
-    rewind() { for (let i = 0; i < 6; i++) tone({ type: "square", f0: 1400 - i * 120, f1: 1800 - i * 120, at: i * 0.05, dur: 0.04, vol: 0.03 }); },
-    yawn() { tone({ type: "sawtooth", f0: 260, f1: 180, dur: 0.9, vol: 0.04, vibrato: 6, curve: "lin" }); },
-    shutter() { noise({ dur: 0.05, vol: 0.2, type: "highpass", f0: 2000, q: 0.7 }); noise({ at: 0.09, dur: 0.06, vol: 0.15, type: "bandpass", f0: 1200, q: 1 }); },
-    // each team has a little tune after its move: brighter when ahead, sadder when behind
+    tick() { wood(deg(12), 0, 0.08); },
+    spout() { bubble(deg(5), 0, 0.12); bubble(deg(7), 0.07, 0.1); bubble(deg(9), 0.14, 0.08); },
+    // poked: a squeaky toy, twice
+    giggle() { whistle(deg(12), deg(14), 0, 0.09, 0.08); whistle(deg(13), deg(15), 0.12, 0.09, 0.07); },
+    neigh() { whistle(deg(9), deg(13), 0, 0.45, 0.08, 14); },
+    ufo() { whistle(deg(9), deg(14), 0, 1.3, 0.06, 18); whistle(deg(14), deg(9), 1.3, 1.2, 0.05, 18); },
+    rain(dur = 4) { for (let i = 0; i < Math.round(dur / 0.11); i++) marimba(deg(R(9, 17)), i * 0.11 + R(0, 0.05), 0.04, 0.2); },
+    rewind() { run([15, 14, 12, 10, 9, 7, 5], 0, 0.04, marimba, 0.1); },
+    yawn() { whistle(deg(8), deg(3), 0, 0.9, 0.06, 4); },
+    shutter() { wood(deg(11), 0, 0.14); wood(deg(9), 0.08, 0.12); },
+    achoo() { whistle(deg(7), deg(9), 0, 0.25, 0.06); whistle(deg(9), deg(11), 0.35, 0.25, 0.06); pomf(200, 0.75, 0.28, 0.14); shaker(0.75, 0.25, 0.05, 1600); },
+    snore() { whistle(deg(2), deg(4), 0, 0.7, 0.06, 6); whistle(deg(9), deg(7), 0.8, 0.5, 0.04); },
+    burp() { whistle(deg(4), deg(2), 0, 0.22, 0.1, 20); },
+    pinch() { wood(deg(14), 0, 0.16); wood(deg(15), 0.08, 0.14); },
+    page() { shaker(0, 0.35, 0.04, 1700); },
+    confetti() { run([9, 12, 10, 14, 12, 15], 0, 0.06, bubble, 0.1); },
+    shootingstar() { run([17, 16, 14, 13, 11], 0, 0.06, bell, 0.05); },
+    // after each move, the team that moved hums a little: brighter when ahead, gentler when behind
     tune(side = 0, mood = 0) {
-      const base = side ? [587, 698, 880, 1175] : [523, 659, 784, 1047];
-      const notes = mood > 0 ? base : mood < 0 ? [base[2], base[1] * 0.94, base[0] * 0.94] : [base[0], base[2]];
-      notes.forEach((f, i) => tone({ type: "triangle", f0: f, at: 0.25 + i * 0.09, dur: 0.12, vol: 0.05 }));
+      const b = side ? 2 : 0;
+      const line = mood > 0 ? [7, 9, 10, 12] : mood < 0 ? [9, 8, 7] : [7, 9];
+      run(line.map((d) => d + b), 0.25, 0.09, marimba, 0.07);
     },
   };
 
@@ -192,20 +206,13 @@
     set(v) {
       on = Boolean(v);
       try { localStorage.setItem("chess-sound", on ? "on" : "off"); } catch { /* fine */ }
-      if (on) { ready(); loadAll(); SFX.select(5, 0); }
+      if (on) { ready(); SFX.select(5, 0); }
       else if (ctx) ctx.suspend();
     },
     play(name, ...args) {
-      if (!ready()) return;
-      loadAll();
-      try {
-        if (playRecorded(recordingFor(name, args))) return;
-        if (SFX[name]) SFX[name](...args);
-      } catch { /* a sound never breaks the game */ }
+      if (!ready() || !SFX[name]) return;
+      try { SFX[name](...args); } catch { /* a sound never breaks the game */ }
     },
   };
   root.Sound = Sound;
-  // with sound already on from an earlier visit, the recordings start loading at the first touch or key
-  const warm = () => { if (on && ready()) loadAll(); };
-  ["pointerdown", "keydown"].forEach((t) => root.addEventListener(t, warm, { once: true, passive: true }));
 })(window);

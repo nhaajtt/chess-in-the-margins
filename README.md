@@ -153,7 +153,7 @@ the address to see one on any day.
 - Play the computer on easy, normal or hard, as either team, or play a friend on the same screen.
 - Use a 5 or 10 minute clock. Every second the old time is crossed out and the new one written in.
 - Undo, flip the board (it turns round on the table) or resign with a sticky note that asks `resign?`.
-- Turn the sound on: every action has its own recorded effect. The acorn slashes with a wooden sword, the bee queen's wand sparkles, the wizard zaps with electricity, the pony kicks, and there are sneezes, snores, a burp, a UFO and a shower of rain.
+- Turn the sound on: everything plays on a little toy box of a marimba, bells, a slide whistle, a wood block and soap bubbles, all in one cheerful scale so overlapping sounds always fit. The acorn's sword goes swish and clack, the bee queen's wand twinkles, the wizard's zap fizzes, the pony kicks and clip-clops, and a poked creature squeaks like a toy.
 - Read the commentary on a sticky note, which notices forks, checks, hanging pieces and castling.
 - Play with the keyboard: Tab to the board, arrow keys to move around, Enter to pick up and put down.
 - With reduced motion turned on in your system, everything holds still and the whole game still works.
@@ -169,7 +169,7 @@ No framework and no build step: just HTML, CSS and plain JavaScript in a handful
 | `creatures.js` | The twelve creatures, drawn with [rough.js](https://roughjs.com) from separate parts (legs, arms, hat, face). Each part is drawn twice and the copies take turns so the lines boil. It also handles expressions, idle life, walking and the drawing-in effect. |
 | `game.js` | Everything else: the board on a tilted plane with creatures projected onto it, moves and fights animated with [GSAP](https://gsap.com), the camera, the story, the doodles, the commentary and the clock. |
 | `paper.js` | Paints the sheet of paper once on a canvas. |
-| `sound.js` | Plays the recorded effects in `sfx/` (made with ElevenLabs sound effects, one for each action and a different hit for each creature on each team), fetched only once you turn sound on. Anything without a recording is made on the spot with the Web Audio API. Off until you turn it on. |
+| `sound.js` | A toy box made with the Web Audio API: marimba, bells, slide whistle, wood block, bubbles and a soft drum, all in C major pentatonic, through a soft low-pass and a little room. A different hit for each creature on each team. No audio files. Off until you turn it on. |
 | `server/` | The online rooms: a Cloudflare Worker with one Durable Object per room. It keeps the real game, checks every move with the same `engine.js`, talks over WebSockets, only accepts the game's own pages, rate-limits each socket and forgets a room a day after it was last used. |
 | `scripts/perft.mjs` | Checks the move generator against the standard perft counts. |
 
