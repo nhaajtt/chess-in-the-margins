@@ -133,6 +133,21 @@
     tick() { tone({ type: "square", f0: 1800, dur: 0.02, vol: 0.04 }); },
     // the frog's tongue, the whale's spout: the page's own little noises
     spout() { noise({ dur: 0.5, vol: 0.06, type: "highpass", f0: 1500, f1: 4000, q: 0.5, attack: 0.08 }); },
+    // a poked creature giggles
+    giggle() { [0, 0.09, 0.18, 0.27].forEach((at, i) => tone({ type: "triangle", f0: 900 - i * 60, f1: 1200 - i * 60, at, dur: 0.06, vol: 0.09 })); },
+    // a pony asks a question
+    neigh() { tone({ type: "sawtooth", f0: 700, f1: 380, dur: 0.55, vol: 0.05, vibrato: 30, curve: "lin" }); },
+    ufo() { tone({ type: "sine", f0: 300, f1: 900, dur: 1.4, vol: 0.06, vibrato: 40, curve: "lin" }); tone({ type: "sine", f0: 905, f1: 305, at: 1.4, dur: 1.2, vol: 0.05, vibrato: 40, curve: "lin" }); },
+    rain(dur = 4) { for (let i = 0; i < Math.round(dur / 0.08); i++) noise({ at: i * 0.08, dur: 0.07, vol: 0.03, type: "highpass", f0: R(2500, 6000), q: 0.6 }); },
+    rewind() { for (let i = 0; i < 6; i++) tone({ type: "square", f0: 1400 - i * 120, f1: 1800 - i * 120, at: i * 0.05, dur: 0.04, vol: 0.03 }); },
+    yawn() { tone({ type: "sawtooth", f0: 260, f1: 180, dur: 0.9, vol: 0.04, vibrato: 6, curve: "lin" }); },
+    shutter() { noise({ dur: 0.05, vol: 0.2, type: "highpass", f0: 2000, q: 0.7 }); noise({ at: 0.09, dur: 0.06, vol: 0.15, type: "bandpass", f0: 1200, q: 1 }); },
+    // each team has a little tune after its move: brighter when ahead, sadder when behind
+    tune(side = 0, mood = 0) {
+      const base = side ? [587, 698, 880, 1175] : [523, 659, 784, 1047];
+      const notes = mood > 0 ? base : mood < 0 ? [base[2], base[1] * 0.94, base[0] * 0.94] : [base[0], base[2]];
+      notes.forEach((f, i) => tone({ type: "triangle", f0: f, at: 0.25 + i * 0.09, dur: 0.12, vol: 0.05 }));
+    },
   };
 
   const Sound = {

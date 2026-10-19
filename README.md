@@ -86,14 +86,37 @@ Leave the board alone for a few seconds and the creatures get bored. Each time s
 - a wizard sneezes so hard its hat takes off
 
 Any touch, key or move calls everyone back to their squares. Add `?scene=crab` (or `beach`, `frog`, `nap`, `rps`, `wave`,
-`snore`, `sneeze`) to the address to see one first.
+`snore`, `sneeze`, `bored`, `ufo`, `rain`, `stranger`) to the address to see one first.
 
 During a game the creatures have opinions. A creature being taken sometimes gets its last words in ("tell my mum I was
 brave", "not the hat!"). Two captures in a row and the whole team celebrates while the other weeps. A king checked once too
 often breaks into a sweat and gets out a hanky, and a side that resigns has its king wave a little white flag.
 
+The creatures also remember and react:
+
+- **They hold grudges.** Whoever lost a friend last game glares at the one who took it ("I remember you.").
+- **Veterans.** A pawn that once made it to the far side wears a little crown in the games after.
+- **The queen is a diva.** Her team gets out of her way, and she waves to the crowd.
+- **Ponies** picked up and put down again ask "neigh?".
+- **Thinking for half a minute?** Everyone sits down, yawns, spreads out a picnic and starts a game of go fish.
+- **Playing very fast?** They are out of breath ("slow down, we have little legs").
+- **Picked up three times and put back?** "So are we going or not?"
+- **Undo** winds the board back like a tape, and complains the more you use it.
+- **Losing to the computer again and again?** Once in a while it feels bad and goes easy on you.
+- **Poke** a creature that isn't yours to move: it giggles; poke it five times and it gets cross.
+- Each team has a little tune after its move, brighter when it is ahead and sadder when it is behind.
+
+Now and then something rare happens: a flying saucer beams a creature up and puts it down on the wrong square (then
+fixes it), a sudden shower sends everyone under leaves and ends with a double rainbow, or an ordinary faceless chess
+piece wanders onto the board and nobody knows what to make of it.
+
+Special endings: a checkmate in eight moves or fewer gets a slow-motion replay with a parrot on commentary, a win without
+losing anyone ends with a team photo you can save, a draw has the two kings sit down for tea, and a game past sixty moves
+leaves everyone with a beard. Every finished game can be saved as a result card to send to friends.
+
 At night (seven in the evening to six in the morning, by your own clock) the page turns blue, fireflies come out, the sun
-goes to bed in a nightcap and the moon is wide awake. `?time=night` or `?time=day` shows either.
+goes to bed in a nightcap and the moon is wide awake. `?time=night` or `?time=day` shows either. Or choose for yourself: drag the cloud over the sun for night, and drag it
+away for day (on a phone, tap the moon).
 
 ### Holidays
 

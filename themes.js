@@ -51,6 +51,11 @@
     try { asked = new URLSearchParams(location.search).get("time"); } catch { /* no address */ }
     if (asked === "night") return true;
     if (asked === "day") return false;
+    // the visitor's own choice: the cloud dragged over the sun, or the moon tapped
+    let chosen = null;
+    try { chosen = localStorage.getItem("chess-sky"); } catch { /* no storage */ }
+    if (chosen === "night") return true;
+    if (chosen === "day") return false;
     const h = now.getHours();
     return h >= 19 || h < 6;
   }
@@ -167,6 +172,20 @@
       if (eyes.length > 1) s.line(`M ${eyes[0][0] + r * 1.4} ${eyes[0][1]} L ${eyes[1][0] - r * 1.4} ${eyes[1][1]}`, { sw: 1.4, ink: "#5a3a1a" });
     },
   };
+
+  // a pawn that once made it to the far side wears a little crown in the games after
+  function veteran(c) {
+    if (!root.rough || !c) return;
+    const black = c.key[0] === "b";
+    const body = box(c.body) || { x: 30, y: 40, width: 40, height: 50 };
+    const hat = c.hat ? box(c.hat) : null;
+    const top = black ? body.y + 2 : (hat ? hat.y + 4 : body.y);
+    const cx = black ? 38 : 40, w = 16;
+    wear(c, !black && c.hat ? c.hat : c.root, "veteran", (s) => {
+      s.shape(`M ${cx - w / 2} ${top} L ${cx - w / 2} ${top - w * 0.6} L ${cx - w / 4} ${top - w * 0.3} L ${cx} ${top - w * 0.75} L ${cx + w / 4} ${top - w * 0.3} L ${cx + w / 2} ${top - w * 0.6} L ${cx + w / 2} ${top} Z`, "#f3c33a", { gap: 1.4, style: "zigzag", sw: 1.3 });
+      s.shape(E(cx, top - w * 0.78, 1.8, 1.8), "#e8432e", { line: false, wash: false, style: "solid" });
+    });
+  }
 
   // dress one creature for the holiday; returns the bits that swing on their own
   function dress(c, theme = id) {
@@ -674,5 +693,5 @@
   }
 
   const note = id ? (typeof THEMES[id].note === "function" ? THEMES[id].note() : THEMES[id].note) : null;
-  root.Themes = { id, note, list: Object.keys(THEMES), pick, night, dress, decorate };
+  root.Themes = { id, note, list: Object.keys(THEMES), pick, night, dress, decorate, veteran };
 })(typeof window !== "undefined" ? window : this);
