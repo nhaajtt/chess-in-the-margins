@@ -359,7 +359,12 @@
 
     if (theme === "tet") {
       // red lanterns hang from the string of stars and sway
-      stars.filter((_, i) => i % 3 === 1).forEach(([bx, by], i) => {
+      // only from the stars clear of the title, so the lanterns never hide it
+      const title = document.querySelector(".cx-title"), dr = deco.getBoundingClientRect();
+      let tr = null;
+      if (title) { const r = document.createRange(); r.selectNodeContents(title); tr = r.getBoundingClientRect(); }
+      const clear = tr && tr.width ? stars.filter(([bx]) => bx + dr.left < tr.left - 24 || bx + dr.left > tr.right + 24) : stars.filter((_, i) => i % 3 === 1);
+      clear.forEach(([bx, by], i) => {
         const ln = mover("t-lantern", (g) => {
           g.append(rc.line(bx, by - 6, bx, by + 16, { stroke: "#7a4a1c", strokeWidth: 1.2, seed: 2300 + i }));
           g.append(rc.ellipse(bx, by + 34, 34, 38, { stroke: "#9a2a1a", strokeWidth: 1.5, fill: "#e8432e", fillStyle: "hachure", hachureGap: 2.6, seed: 2301 + i }));
