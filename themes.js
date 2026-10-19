@@ -19,7 +19,8 @@
   const MOON = { 2025: "10-06", 2026: "09-25", 2027: "09-15", 2028: "10-03", 2029: "09-22", 2030: "09-12", 2031: "10-01", 2032: "09-19", 2033: "09-08", 2034: "09-27", 2035: "09-16", 2036: "10-04" };
   const day = (y, md) => { const [m, d] = md.split("-").map(Number); return new Date(y, m - 1, d); };
   // the owner's birthday, as "MM-DD" (null: no birthday theme unless asked for with ?theme=birthday)
-  const BIRTHDAY = null;
+  const BIRTHDAY = "01-01";
+  const today = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
   const near = (now, at, before, after) => { const t = (now - at) / 86400000; return t >= -before && t < after + 1; };
 
   const THEMES = {
@@ -33,13 +34,14 @@
     womensday: { note: () => (new Date().getMonth() === 9 ? "Vietnamese Women's Day! the creatures brought flowers" : "happy Women's Day! flowers for everyone"), when: (n, y) => near(n, day(y, "10-20"), 1, 1) || near(n, day(y, "03-08"), 1, 1) },
     childrensday: { note: "happy Children's Day! sweets for everyone (the crab took two)", when: (n, y) => near(n, day(y, "06-01"), 1, 1) },
     teachersday: { note: "happy Teachers' Day! the owl is giving a lecture", when: (n, y) => near(n, day(y, "11-20"), 1, 1) },
-    birthday: { note: "happy birthday! the creatures baked a cake. the crab ate a bit of it.", when: (n, y) => Boolean(BIRTHDAY) && near(n, day(y, BIRTHDAY), 0, 0) },
+    birthday: { note: () => (THEMES.newyear.when(today(), today().getFullYear()) ? "happy birthday, and happy New Year! the creatures baked a cake. the crab ate a bit." : "happy birthday! the creatures baked a cake. the crab ate a bit of it."), when: (n, y) => Boolean(BIRTHDAY) && near(n, day(y, BIRTHDAY), 0, 0) },
   };
   function pick(now = new Date()) {
     let asked = null;
     try { asked = new URLSearchParams(location.search).get("theme"); } catch { /* no address */ }
     if (asked !== null) return THEMES[asked] ? asked : null;
     const n = new Date(now.getFullYear(), now.getMonth(), now.getDate()), y = n.getFullYear();
+    if (THEMES.birthday.when(n, y)) return "birthday";
     for (const id in THEMES) if (THEMES[id].when(n, y)) return id;
     return null;
   }
@@ -386,7 +388,8 @@
       }
     }
 
-    if (theme === "newyear") {
+    const newYearToo = theme === "birthday" && THEMES.newyear.when(today(), today().getFullYear());
+    if (theme === "newyear" || newYearToo) {
       rain("t-confetti", narrow ? 16 : 34, (i) => { const g = svgEl("g"); g.append(rc.rectangle(-3, -5, 6, 10, { stroke: "none", fill: ["#e8432e", "#f6c945", "#4a8fe0", "#3fb39a", "#ef5a7a"][i % 5], fillStyle: "solid", seed: 2200 + i })); return g; }, { slow: 8 });
       // fireworks burst over the page, one after another
       if (anim) {
@@ -400,7 +403,7 @@
           G.timeline({ onComplete: () => burst.remove() }).fromTo(burst, { x: fx, y: fy, scale: 0.2, opacity: 1, svgOrigin: "0 0" }, { scale: 3, duration: 0.9, ease: "power2.out" }).to(burst, { opacity: 0, y: fy + 20, duration: 0.6 }, "-=0.4");
         }));
       }
-      if (!narrow) {
+      if (!narrow && !newYearToo) {
         const year = new Date().getMonth() === 11 ? new Date().getFullYear() + 1 : new Date().getFullYear();
         const sign = mover("t-banner", (g) => {
           g.append(rc.rectangle(rightX - 52, H * 0.3, 104, 74, { stroke: "#b57a10", strokeWidth: 1.6, fill: "#fff3c4", fillStyle: "solid", seed: 2240 }));
