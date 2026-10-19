@@ -1324,33 +1324,57 @@
     strokes: { "#2b2f3a": "#ecebf8", "#3c4fb8": "#a9bbff", "#4a4d57": "#d8dae6", "#5d6170": "#cdd1e2", "#3a2a1a": "#f0e2c8", "#4a3020": "#f0dcc0" },
     texts: { "#2b2f3a": "#ecebf8", "#3c4fb8": "#a9bbff", "#c8452e": "#ffab96", "#5d6170": "#cdd1e2" },
   };
-  // the sky is painted once: deep blue getting lighter towards the horizon, a milky way, and hundreds of stars
   let skyPainted = false;
+  // Night is the same sheet of paper on the same beach, after dark: the sand-coloured paper turns the grey-blue
+  // of sand under the moon (grain and folds still there), and only the top of the page is sky, with a few stars
+  // that thin out towards the horizon.
   function paintNightSky() {
     if (skyPainted) return;
     skyPainted = true;
-    const W = 1400, H = 1600, cv = document.createElement("canvas");
-    cv.width = W; cv.height = H;
-    const g = cv.getContext("2d");
-    if (!g) return;
-    let s = 1907;
+    let s = 20261019;
     const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-    const sky = g.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, "#0a1230"); sky.addColorStop(0.55, "#16245a"); sky.addColorStop(1, "#24336e");
-    g.fillStyle = sky; g.fillRect(0, 0, W, H);
-    // the milky way: a faint diagonal band of soft light
-    for (let i = 0; i < 90; i++) {
-      const t = rnd(), x = t * W, y = H * 0.15 + t * H * 0.55 + (rnd() - 0.5) * 220, r = 60 + rnd() * 140;
-      const b = g.createRadialGradient(x, y, 0, x, y, r);
-      b.addColorStop(0, `rgba(180, 190, 255, ${0.025 + rnd() * 0.03})`); b.addColorStop(1, "rgba(180, 190, 255, 0)");
-      g.fillStyle = b; g.fillRect(x - r, y - r, r * 2, r * 2);
+    const put = (name, cv, type, q) => { try { document.documentElement.style.setProperty(name, `url("${cv.toDataURL(type, q)}")`); } catch { /* the plain colour is enough */ } };
+    // the paper by moonlight
+    {
+      const W = 1400, H = 1600, cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      const g = cv.getContext("2d");
+      if (g) {
+        g.fillStyle = "#5f5a66"; g.fillRect(0, 0, W, H);
+        const img = g.getImageData(0, 0, W, H), d = img.data;
+        for (let i = 0; i < d.length; i += 4) { const n = (rnd() - 0.5) * 12; d[i] += n; d[i + 1] += n * 0.95; d[i + 2] += n * 0.9; }
+        g.putImageData(img, 0, 0);
+        const fold = (x0, y0, x1, y1, w) => {
+          const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
+          const a = g.createLinearGradient(x0 - nx * w, y0 - ny * w, x0 + nx * w, y0 + ny * w);
+          a.addColorStop(0, "rgba(0,0,0,0)"); a.addColorStop(0.45, "rgba(10,14,30,0.12)"); a.addColorStop(0.5, "rgba(10,14,30,0.22)");
+          a.addColorStop(0.53, "rgba(200,210,255,0.12)"); a.addColorStop(1, "rgba(0,0,0,0)");
+          g.save(); g.beginPath();
+          g.moveTo(x0 - nx * w, y0 - ny * w); g.lineTo(x1 - nx * w, y1 - ny * w); g.lineTo(x1 + nx * w, y1 + ny * w); g.lineTo(x0 + nx * w, y0 + ny * w);
+          g.closePath(); g.clip(); g.fillStyle = a; g.fillRect(0, 0, W, H); g.restore();
+        };
+        fold(W * 0.62, -20, W * 0.58, H + 20, 18);
+        fold(-20, H * 0.47, W + 20, H * 0.5, 16);
+        put("--night-paper", cv, "image/jpeg", 0.86);
+      }
     }
-    for (let i = 0; i < 900; i++) {
-      const x = rnd() * W, y = rnd() * H, r = rnd() < 0.92 ? rnd() * 1.1 + 0.3 : rnd() * 1.6 + 1;
-      g.fillStyle = `rgba(${235 + rnd() * 20}, ${235 + rnd() * 20}, 255, ${0.35 + rnd() * 0.6})`;
-      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    // the sky over the top of the page, fading into the paper
+    {
+      const W = 1400, H = 420, cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      const g = cv.getContext("2d");
+      if (g) {
+        const sky = g.createLinearGradient(0, 0, 0, H);
+        sky.addColorStop(0, "rgba(20, 26, 62, 0.95)"); sky.addColorStop(0.5, "rgba(44, 46, 86, 0.55)"); sky.addColorStop(1, "rgba(95, 90, 102, 0)");
+        g.fillStyle = sky; g.fillRect(0, 0, W, H);
+        for (let i = 0; i < 160; i++) {
+          const y = Math.pow(rnd(), 1.8) * H * 0.8, x = rnd() * W, r = rnd() < 0.9 ? rnd() * 1 + 0.3 : rnd() * 1.4 + 1;
+          g.fillStyle = `rgba(255, 250, 230, ${(0.3 + rnd() * 0.6) * (1 - y / (H * 0.85))})`;
+          g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+        }
+        put("--night-sky", cv, "image/png");
+      }
     }
-    try { document.documentElement.style.setProperty("--night-img", `url("${cv.toDataURL("image/jpeg", 0.88)}")`); } catch { /* the plain colour is enough */ }
   }
   // a few bright stars twinkle on their own layer, and now and then a star shoots across
   const twinkles = document.createElement("div");
@@ -1365,7 +1389,7 @@
     if (!twinkles.childElementCount) {
       for (let i = 0; i < 46; i++) {
         const st = document.createElement("i");
-        st.style.left = `${R(0, 100)}%`; st.style.top = `${R(0, 100)}%`;
+        st.style.left = `${R(0, 100)}%`; st.style.top = `${Math.pow(Math.random(), 1.6) * 80}%`;
         st.style.setProperty("--d", `${R(1.6, 4.2).toFixed(2)}s`); st.style.setProperty("--w", `${R(0, 4).toFixed(2)}s`);
         st.style.setProperty("--s", `${R(2, 4.5).toFixed(1)}px`);
         twinkles.append(st);
@@ -1374,7 +1398,7 @@
     if (!anim) return;
     const shoot = () => {
       const s = document.createElement("b");
-      s.style.left = `${R(10, 80)}%`; s.style.top = `${R(4, 40)}%`;
+      s.style.left = `${R(10, 70)}%`; s.style.top = `${R(4, 30)}%`;
       twinkles.append(s);
       sfx("shootingstar");
       G.fromTo(s, { x: 0, y: 0, opacity: 0, scaleX: 0.3 }, { x: R(260, 420), y: R(120, 200), opacity: 1, scaleX: 1, duration: 0.9, ease: "power1.in", onComplete: () => G.to(s, { opacity: 0, duration: 0.25, onComplete: () => s.remove() }) });
@@ -2313,6 +2337,18 @@
       const mover = (cls, draw) => { const g = svgEl("g", { class: cls }); draw(g); deco.append(g); return g; };
       const [sx, sy] = sunAt.split(" ").map(Number);
       TH.decorate({ deco, W, H, narrow, rc: rough.svg(deco), doodle, mover, loop, anim, G, svgEl, beach: beachKit, sun: [sx, sy, narrow ? 16 : 30], moon: moonAt });
+    }
+    // at night the moon lays a shimmering path across the sea
+    if (nightNow && beachKit) {
+      const rcN = rough.svg(deco), path = svgEl("g", { class: "t-moonpath" });
+      for (let i = 0; i < 9; i++) {
+        const [x, y] = beachKit.inSea(0.55 + (i % 3) * 0.08, 0.18 + i * 0.085), w = 14 + i * 4;
+        const dash = svgEl("g");
+        dash.append(rcN.line(x - w / 2, y, x + w / 2, y, { stroke: "#fff3c4", strokeWidth: 2.4, roughness: 0.6, seed: 3480 + i }));
+        path.append(dash);
+      }
+      deco.append(path);
+      if (anim) loop(G.to(path.children, { opacity: 0.25, x: 6, duration: 0.9, yoyo: true, repeat: -1, ease: "sine.inOut", stagger: { each: 0.15, repeat: -1, yoyo: true } }));
     }
     if (anim) flattenDeco(0.3);
     fitHandles();

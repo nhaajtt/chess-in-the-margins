@@ -251,10 +251,12 @@ button { font: inherit; color: inherit; }
 /* ---------- night: a dark sky full of stars; ink turns to chalk ---------- */
 body.is-night {
   --ink: #ecebf8; --ink-2: #c3c8e0; --pen-blue: #a9bbff; --pen-red: #ff9f8a; --paper: #16245a;
-  background-color: #101a40; background-image: var(--night-img, none); background-size: cover; background-attachment: fixed;
+  /* the beach after dark: sky across the top, the paper under the moon below */
+  background-color: #5f5a66; background-image: var(--night-sky, none), var(--night-paper, none);
+  background-size: 100% 420px, max(100%, 1400px) auto; background-repeat: no-repeat, repeat-y; background-position: 50% 0, 50% 0;
   transition: background-color 1.2s;
 }
-.cx-sky { position: fixed; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+.cx-sky { position: absolute; left: 0; right: 0; top: 0; height: 300px; pointer-events: none; z-index: -1; overflow: hidden; }
 .cx-sky[hidden] { display: none; }
 .cx-sky i { position: absolute; width: var(--s, 3px); height: var(--s, 3px); border-radius: 50%; background: #fffbe6; box-shadow: 0 0 6px 2px rgba(255, 244, 200, 0.75); animation: cx-twinkle var(--d, 3s) ease-in-out var(--w, 0s) infinite; will-change: opacity, transform; }
 .cx-sky b { position: absolute; width: 120px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fffbe6); transform-origin: 100% 50%; rotate: 25deg; box-shadow: 0 0 8px rgba(255, 250, 220, 0.8); }
