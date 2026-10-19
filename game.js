@@ -328,7 +328,7 @@
       }
       const done = drawAt + 8 * 0.2 + 0.9;
       penBusy = true;
-      G.delayedCall(done, () => { penBusy = false; bakePieces(); });
+      G.delayedCall(done, () => { penBusy = false; if (!decoDrawing) bakePieces(); });
       G.delayedCall(done, () => { for (const [, el] of els) { const c = el.__c; if (c.state !== "open") continue; CR.setFace(c, "happy", c.spec.face.beak ? "open" : "grin"); G.delayedCall(R(0.6, 1.1), () => CR.restFace(c)); G.fromTo(el.__act, { y: 0 }, { y: -12, duration: 0.18, yoyo: true, repeat: 1, ease: "power2.out", delay: R(0, 0.3) }); } });
     } else if (entrance && anim) {
       // they hop in from the edge of the page, one rank at a time
@@ -340,7 +340,7 @@
     if (!(entrance === "draw" && anim)) { penBusy = false; bakePieces(); }
   }
   // put every creature back on its square; ones in the middle of a move are left alone
-  function relayout() { for (const el of layer.children) if (el.__at != null && !(G && G.isTweening(el))) place(el, el.__at); }
+  function relayout() { for (const el of layer.children) if (el.__at != null && !el.__away && !(G && G.isTweening(el))) place(el, el.__at); }
 
   // once a creature is drawn its strokes become pictures (see creatures.js), twice as sharp as the
   // biggest creature on screen so the camera can lean in; a bigger window makes sharper ones
@@ -647,6 +647,7 @@
   const motions = [];
   function finishMotion() { motions.splice(0).forEach((j) => j.finishNow()); }
   async function playMove(m) {
+    if (outing) outing.hurry();
     const us = game.turn;
     const victimSq = m.flags & E.F_EP ? m.to + (us ? 16 : -16) : m.to;
     const mover = els.get(m.from), victim = m.captured ? els.get(victimSq) : null;
@@ -1014,6 +1015,7 @@
   function afterMove(m, san) {
     writeMoves(true);
     labelSquares();
+    armIdle();
     const st = game.status();
     const turn = game.turn;
     const king = st.check ? [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === turn) : null;
@@ -1263,11 +1265,13 @@
 
   // once the doodles are drawn, their still pen strokes become pictures (see creatures.js), so each frame
   // repaints only what moves; the pictures are let go when the doodles are drawn again
-  let decoPics = [], decoGen = 0;
+  let decoPics = [], decoGen = 0, decoDrawing = false, beachKit = null;
   function flattenDeco(after) {
     const gen = ++decoGen;
     G.delayedCall(after, async () => {
       if (gen !== decoGen) return;
+      decoDrawing = false;
+      if (!penBusy) bakePieces();
       const ppu = Math.min(4, Math.max(1.5, (window.devicePixelRatio || 1) * 1.5));
       const urls = await CR.flatten(deco, ppu);
       if (gen !== decoGen) { urls.forEach((u) => CR.release(u)); return; }
@@ -1279,6 +1283,7 @@
     if (!W || !H) return;
     decoDrawnAt = [W, H];
     decoGen++;
+    beachKit = null;
     decoPics.forEach((u) => CR.release(u));
     decoPics = [];
     decoTweens.forEach((t) => t.kill());
@@ -2118,6 +2123,7 @@
           g.append(rc.arc(32, 1, 8, 4, 0.2, Math.PI - 0.6, false, { stroke: "#1f1a2a", strokeWidth: 1, seed: 1005 }));
         });
         const splash = (x, y) => { for (let i = 0; i < 6; i++) { const d = rc.circle(0, 0, R(4, 7), { stroke: "#3c6fc0", strokeWidth: 1, fill: "#cfe6f8", fillStyle: "solid", seed: 1010 + i }); deco.append(d); G.timeline({ onComplete: () => d.remove() }).set(d, { x, y }).to(d, { x: `+=${R(-26, 26)}`, y: `-=${R(14, 40)}`, opacity: 0, duration: 0.7, ease: "power2.out" }); } };
+        beachKit = { B, inSea, dolphin, splash, k0 };
         [0, 1].forEach((j) => {
           const dl = dolphin();
           G.set(dl, { opacity: 0 });
@@ -2184,6 +2190,8 @@
     const g = deco.querySelector(".d-pencils");
     if (g) G.timeline().to(g, { x: R(-14, 14), rotation: R(-3, 3), svgOrigin: `${pencilsAt[0]} ${pencilsAt[1]}`, duration: 0.5, ease: "power2.out" });
   }
+  // the doodles are drawn one after another, a new one starting every DECO_STEP seconds
+  const DECO_STEP = 0.12;
   function drawDecoIn(at) {
     if (!anim) return;
     const groups = [...deco.children];
@@ -2194,13 +2202,14 @@
       const lines = [...g.querySelectorAll("line")];
       const texts = [...g.querySelectorAll("text")];
       G.set([...fills, ...texts, ...lines], { opacity: 0 });
-      const tl = G.timeline({ delay: at + Math.min(i * 0.05, 2.2), onComplete: () => undash(paths) });
+      const tl = G.timeline({ delay: at + i * DECO_STEP, onComplete: () => undash(paths) });
       if (paths.length) tl.to(paths, { strokeDashoffset: 0, duration: 0.7, ease: "power1.inOut", stagger: { each: 0.5 / Math.max(1, paths.length) } });
       if (lines.length) tl.to(lines, { opacity: 1, duration: 0.3 }, 0);
       if (fills.length) tl.to(fills, { opacity: 1, duration: 0.6, ease: "none", stagger: { each: 0.3 / fills.length } }, paths.length ? "-=0.35" : 0);
       if (texts.length) tl.to(texts, { opacity: 1, duration: 0.3 }, "-=0.2");
     });
-    flattenDeco(at + Math.min(groups.length * 0.05, 2.2) + 1.8);
+    decoDrawing = true;
+    flattenDeco(at + groups.length * DECO_STEP + 1.8);
   }
   function whale(instant = false) {
     if (!whaleClip) return;
@@ -2219,6 +2228,151 @@
     const [x, y] = sunAt.split(" ").map(Number);
     G.timeline().to(".d-sun .d-mouth", { scaleY: 1.8, svgOrigin: `${x} ${y}`, duration: 0.15, yoyo: true, repeat: 5 }).to(".d-sun", { rotation: 15, svgOrigin: sunAt, duration: 0.12, yoyo: true, repeat: 5 }, 0);
   }
+
+  /* ---------- while nobody moves ---------- */
+
+  // After seven quiet seconds a mushroom wanders off to the beach to play. A dolphin leaps up out of the
+  // sea right next to it, the mushroom gets the fright of its life and runs back to its square.
+  // Any touch, key or move calls it home at once (it still runs back, it never just jumps home).
+  const IDLE_WAIT = 7;
+  let idleCall = null, outing = null;
+  function armIdle() {
+    if (idleCall) idleCall.kill();
+    idleCall = anim ? G.delayedCall(IDLE_WAIT, wanderOff) : null;
+  }
+  const tableEl = $("cam").parentElement;
+  function pageToLayer(px, py) {
+    const r = layer.getBoundingClientRect(), k = r.width / (layer.offsetWidth || 1);
+    return [(px - r.left) / k, (py - r.top) / k];
+  }
+  function wanderOff() {
+    idleCall = null;
+    const quiet = beachKit && !over && !busy && !penBusy && !decoDrawing && !motions.length && !outing && selected < 0 && !document.hidden && !$("intro").classList.contains("is-on");
+    if (!quiet) { armIdle(); return; }
+    const dr = deco.getBoundingClientRect();
+    const [bx, by] = beachKit.B(0.3, 34);
+    const target = pageToLayer(dr.left + bx, dr.top + by);
+    // the mushroom nearest the sea goes
+    let best = null, bd = Infinity;
+    for (const [sq, el] of els) {
+      if (el.__p !== 1 || el.__at !== sq) continue;
+      const s = spot(sq), d = Math.hypot(s.x - target[0], s.y - target[1]);
+      if (d < bd) { bd = d; best = el; }
+    }
+    if (!best) { armIdle(); return; }
+    goToTheBeach(best, target, [bx, by]);
+  }
+  function goToTheBeach(el, target, sand) {
+    const home = el.__at, s0 = spot(home), c = el.__c, act = el.__act;
+    const back = { x: s0.x - s0.w / 2, y: s0.y - s0.w }, there = { x: target[0] - s0.w / 2, y: target[1] - s0.w };
+    const dist = Math.hypot(there.x - back.x, there.y - back.y);
+    const kit = beachKit;
+    const gait = CR.walk(c, 0.12);
+    gait.pause();
+    let dl = null, dlTl = null, boo = null, drips = null;
+    const job = { done: false };
+    job.promise = new Promise((ok) => { job.resolve = ok; });
+    outing = job; motion = job; motions.push(job);
+    el.__away = true;
+    el.style.zIndex = "2000";
+    // the table is lifted above the doodles so the mushroom walks over the sand, not under it
+    tableEl.style.zIndex = "3";
+
+    const startle = () => {
+      CR.setFace(c, "scared", c.spec.face.beak ? "open" : "wavy");
+      el.classList.add("is-startled");
+      G.fromTo(el.querySelector(".cx-bang"), { scale: 0, rotation: -40 }, { scale: 1, rotation: 0, duration: 0.4, ease: "back.out(4)" });
+      sfx("pop");
+      sweat(el);
+      drips = G.delayedCall(0.3, function again() { sweat(el); drips = G.delayedCall(0.3, again); });
+    };
+    const runHome = (t, fast) => {
+      t.call(() => { gait.timeScale(fast ? 2.2 : 1.8); gait.play(); sfx("whoosh"); })
+        .to(el, { x: back.x, y: back.y, duration: fast ? Math.max(0.5, dist / 1100) : Math.max(0.9, dist / 650), ease: "power1.in" })
+        .to(act, { y: -5, duration: 0.07, yoyo: true, repeat: 15, ease: "sine.out" }, "<");
+    };
+    let tl = null;
+    const end = () => {
+      if (job.done) return;
+      job.done = true;
+      if (tl) tl.kill();
+      if (job.tl2) job.tl2.kill();
+      gait.kill();
+      if (drips) drips.kill();
+      if (dlTl) dlTl.kill();
+      if (dl) dl.remove();
+      if (boo) boo.remove();
+      G.killTweensOf([el, act]);
+      G.set(act, { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 });
+      el.classList.remove("is-startled");
+      el.__away = false;
+      tableEl.style.zIndex = "";
+      place(el, home);
+      CR.settle(c);
+      CR.restFace(c);
+      if (motions.includes(job)) motions.splice(motions.indexOf(job), 1);
+      outing = null;
+      job.resolve();
+      armIdle();
+    };
+
+    // the dolphin's leap: out of the water, over the mushroom with a "boo!", back into the sea
+    const leap = () => {
+      dl = kit.dolphin();
+      const p0 = kit.inSea(0.2, 0.16), p2 = kit.inSea(0.4, 0.2), p1 = [sand[0] + 40, sand[1] - 140];
+      const at = (u) => { const v = 1 - u; return [v * v * p0[0] + 2 * v * u * p1[0] + u * u * p2[0], v * v * p0[1] + 2 * v * u * p1[1] + u * u * p2[1]]; };
+      const st = { u: 0 };
+      kit.splash(p0[0], p0[1]);
+      sfx("spout");
+      boo = svgEl("text", { x: sand[0] + 46, y: sand[1] - 96, class: "d-boo" });
+      boo.textContent = "boo!";
+      deco.append(boo);
+      dlTl = G.timeline({ onComplete: () => { kit.splash(p2[0], p2[1]); if (dl) dl.remove(); dl = null; if (boo) boo.remove(); boo = null; } })
+        .to(st, { u: 1, duration: 1.5, ease: "sine.inOut", onUpdate: () => {
+          const [x, y] = at(st.u), [x2, y2] = at(Math.min(1, st.u + 0.02));
+          G.set(dl, { x, y, opacity: 1, scale: kit.k0 * 1.25, rotation: (Math.atan2(y2 - y, x2 - x) * 180) / Math.PI });
+        } })
+        .fromTo(boo, { scale: 0, opacity: 0, svgOrigin: `${sand[0] + 60} ${sand[1] - 104}` }, { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(3)" }, 0.55)
+        .to(boo, { opacity: 0, y: -16, duration: 0.5 }, 1.3);
+    };
+
+    tl = G.timeline({ onComplete: end });
+    const walkFor = Math.max(1.6, dist / 320);
+    tl.call(() => { CR.setFace(c, "happy", c.spec.face.beak ? "open" : "grin"); sfx("boing", 1); })
+      .to(act, { y: -16, duration: 0.18, yoyo: true, repeat: 1, ease: "power2.out" })
+      .call(() => gait.play())
+      .to(el, { x: there.x, y: there.y, duration: walkFor, ease: "sine.inOut" })
+      .to(act, { y: -7, duration: 0.15, yoyo: true, repeat: Math.max(3, Math.round(walkFor / 0.15) - 1), ease: "sine.out" }, "<")
+      .call(() => { gait.pause(); CR.settle(c); })
+      // playing in the sand: little jumps, a twirl, a happy wiggle
+      .to(act, { y: -22, duration: 0.2, yoyo: true, repeat: 3, ease: "power2.out" })
+      .to(act, { rotation: 360, duration: 0.6, ease: "back.out(1.6)" }, "-=0.2")
+      .set(act, { rotation: 0 })
+      .to(act, { scaleX: 1.12, scaleY: 0.9, duration: 0.12, yoyo: true, repeat: 3, transformOrigin: "50% 100%" })
+      .call(leap)
+      .to({}, { duration: 0.6 })
+      .call(startle)
+      .to(act, { y: -48, scaleY: 1.15, scaleX: 0.9, duration: 0.2, ease: "power2.out" })
+      .to(act, { y: 0, scaleY: 1, scaleX: 1, duration: 0.3, ease: "bounce.out" });
+    runHome(tl, false);
+    tl.call(() => { gait.pause(); CR.settle(c); })
+      .to(act, { y: -10, duration: 0.1, yoyo: true, repeat: 1 });
+
+    // called home early: it turns round and runs back, frightened or not
+    job.hurry = () => {
+      if (job.done || job.hurrying) return;
+      job.hurrying = true;
+      tl.kill();
+      G.killTweensOf([el, act]);
+      G.set(act, { y: 0, rotation: 0, scaleX: 1, scaleY: 1 });
+      job.tl2 = G.timeline({ onComplete: end });
+      runHome(job.tl2, true);
+    };
+    job.finishNow = end;
+  }
+  // touching the page or pressing a key calls a wandering mushroom home and starts the wait again
+  ["pointerdown", "keydown"].forEach((t) => document.addEventListener(t, () => { if (outing) outing.hurry(); armIdle(); }, { capture: true, passive: true }));
+
 
   /* ---------- controls ---------- */
 
@@ -2243,6 +2397,7 @@
 
   function newGame(first = false) {
     finishMotion();
+    armIdle();
     game = new Game();
     over = null; selected = -1; legal = []; lastMove = null; firstCapture = true; busy = false;
     if (mode !== "online") human = mode === "cpu" && $("play-purple").checked ? 1 : 0;

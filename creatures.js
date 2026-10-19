@@ -429,6 +429,67 @@
   const baked = new Map();
   // a picture is used only once the browser has it loaded and decoded, so a creature is never left
   // without its lines while a picture is still on its way; the decoded copy is kept so it stays ready
+  // pictures are made a few at a time, in the gaps between frames, so making them never
+  // holds up the drawing or the creatures on the page
+  // (a few can be on their way at once, but each starts only in the gap after a frame)
+  const waiting = [];
+  let running = 0;
+  // right after a frame is painted, with a few milliseconds to spend before the next one
+  const quiet = (go) => requestAnimationFrame(() => setTimeout(() => { const t = performance.now(); go({ timeRemaining: () => 6 - (performance.now() - t) }); }, 0));
+  function pump() {
+    while (running < 4 && waiting.length) {
+      running++;
+      quiet((deadline) => {
+        // in one quiet moment, start as many as fit
+        let first = true;
+        while (waiting.length && (first || (running < 4 && deadline && deadline.timeRemaining() > 6))) {
+          if (!first) running++;
+          first = false;
+          const job = waiting.shift();
+          Promise.resolve().then(job.fn).then(job.ok, job.no).finally(() => { running--; pump(); });
+        }
+        if (first) running--;
+      });
+    }
+  }
+  function inTurn(fn) { return new Promise((ok, no) => { waiting.push({ fn, ok, no }); pump(); }); }
+  // the PNG is written by a helper beside the page when the browser has one (a canvas left to itself
+  // only writes its PNG when the page is idle, which while creatures are moving can take seconds)
+  let helper = null, helperId = 0;
+  const helped = new Map();
+  try {
+    if (root.Worker && root.OffscreenCanvas && root.createImageBitmap) {
+      helper = new Worker("/bake-worker.js");
+      helper.onmessage = (e) => { const done = helped.get(e.data.id); helped.delete(e.data.id); if (done) done(e.data.blob); };
+      helper.onerror = () => { helper = null; helped.forEach((done) => done(null)); helped.clear(); };
+    }
+  } catch { helper = null; }
+  function encodeHere(im, W, H) {
+    return new Promise((ok) => {
+      const cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      cv.getContext("2d").drawImage(im, 0, 0, W, H);
+      cv.toBlob(ok, "image/png");
+    });
+  }
+  function encode(im, W, H) {
+    if (!helper) return encodeHere(im, W, H);
+    // some browsers cannot hand a drawing over as a bitmap; those write the PNG on the page
+    return createImageBitmap(im).then((bitmap) => new Promise((ok) => {
+      if (!helper) { bitmap.close(); ok(null); return; }
+      const id = ++helperId;
+      helped.set(id, ok);
+      helper.postMessage({ id, bitmap }, [bitmap]);
+    })).catch(() => null).then((blob) => blob || encodeHere(im, W, H));
+  }
+  function render(src, W, H) {
+    return new Promise((ok, no) => {
+      const im = new Image(W, H);
+      im.onload = () => encode(im, W, H).then((blob) => (blob ? ready(URL.createObjectURL(blob)).then(ok, no) : no(new Error("bake"))), no);
+      im.onerror = () => no(new Error("bake"));
+      im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+    });
+  }
   const held = new Map();
   function ready(url) {
     const im = new Image();
@@ -440,25 +501,18 @@
   function bakeOne(id, g, ppu) {
     const k = `${id}@${ppu}`;
     if (baked.has(k)) return baked.get(k);
-    const b = g.getBBox(), pad = 3;
-    const x = b.x - pad, y = b.y - pad, w = b.width + pad * 2, h = b.height + pad * 2;
-    const W = Math.max(1, Math.ceil(w * ppu)), H = Math.max(1, Math.ceil(h * ppu));
-    const copy = g.cloneNode(true);
-    copy.removeAttribute("class");
-    copy.removeAttribute("transform");
-    copy.removeAttribute("data-o");
-    copy.querySelectorAll("[style]").forEach((n) => n.removeAttribute("style"));
-    const src = `<svg xmlns="${NS}" viewBox="${x} ${y} ${w} ${h}" width="${W}" height="${H}">${new XMLSerializer().serializeToString(copy)}</svg>`;
-    const job = new Promise((ok, no) => {
-      const im = new Image();
-      im.onload = () => {
-        const cv = document.createElement("canvas");
-        cv.width = W; cv.height = H;
-        cv.getContext("2d").drawImage(im, 0, 0, W, H);
-        cv.toBlob((blob) => (blob ? ready(URL.createObjectURL(blob)).then((url) => ok({ url, x, y, w, h }), no) : no(new Error("bake"))), "image/png");
-      };
-      im.onerror = () => no(new Error("bake"));
-      im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+    const job = inTurn(() => {
+      if (!g.isConnected) throw new Error("gone");
+      const b = g.getBBox(), pad = 3;
+      const x = b.x - pad, y = b.y - pad, w = b.width + pad * 2, h = b.height + pad * 2;
+      const W = Math.max(1, Math.ceil(w * ppu)), H = Math.max(1, Math.ceil(h * ppu));
+      const copy = g.cloneNode(true);
+      copy.removeAttribute("class");
+      copy.removeAttribute("transform");
+      copy.removeAttribute("data-o");
+      copy.querySelectorAll("[style]").forEach((n) => n.removeAttribute("style"));
+      const src = `<svg xmlns="${NS}" viewBox="${x} ${y} ${w} ${h}" width="${W}" height="${H}">${new XMLSerializer().serializeToString(copy)}</svg>`;
+      return render(src, W, H).then((url) => ({ url, x, y, w, h }));
     });
     baked.set(k, job);
     job.catch(() => baked.delete(k));
@@ -513,7 +567,9 @@
     for (const c of n.childNodes) if (!still(c, moving)) return false;
     return true;
   }
-  function picture(nodes, ppu) {
+  function picture(nodes, ppu) { return inTurn(() => picture1(nodes, ppu)).catch(() => null); }
+  function picture1(nodes, ppu) {
+    if (!nodes.every((n) => n.isConnected)) return null;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const n of nodes) {
       if (n.nodeType !== 1) continue;
@@ -521,7 +577,7 @@
       if (!b.width && !b.height) continue;
       x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
     }
-    if (!(x1 > x0)) return Promise.resolve(null);
+    if (!(x1 > x0)) return null;
     const pad = 4, x = x0 - pad, y = y0 - pad, w = x1 - x0 + pad * 2, h = y1 - y0 + pad * 2;
     const W = Math.max(1, Math.ceil(w * ppu)), H = Math.max(1, Math.ceil(h * ppu));
     const xs = new XMLSerializer();
@@ -533,17 +589,7 @@
       body += xs.serializeToString(copy);
     }
     const src = `<svg xmlns="${NS}" viewBox="${x} ${y} ${w} ${h}" width="${W}" height="${H}">${body}</svg>`;
-    return new Promise((ok) => {
-      const im = new Image();
-      im.onload = () => {
-        const cv = document.createElement("canvas");
-        cv.width = W; cv.height = H;
-        cv.getContext("2d").drawImage(im, 0, 0, W, H);
-        cv.toBlob((blob) => (blob ? ready(URL.createObjectURL(blob)).then((url) => ok({ url, x, y, w, h }), () => ok(null)) : ok(null)), "image/png");
-      };
-      im.onerror = () => ok(null);
-      im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
-    });
+    return render(src, W, H).then((url) => ({ url, x, y, w, h }));
   }
   // returns the picture addresses, so the page can let them go when the drawing is thrown away
   async function flatten(top, ppu, minMoves = 24) {

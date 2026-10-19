@@ -71,6 +71,8 @@ button { font: inherit; color: inherit; }
 .cx-drop { position: absolute; right: 8%; top: 18%; width: 13%; aspect-ratio: 1; border-radius: 0 50% 50% 50%; rotate: 45deg; background: #7db7ef; box-shadow: inset -2px -2px 0 rgba(43, 79, 160, 0.45), 0 0 0 1.5px rgba(43, 79, 160, 0.7); pointer-events: none; }
 .cx-bang { position: absolute; left: -8%; top: -10%; font: 700 clamp(18px, 2.6vw, 30px)/1 var(--sketch); color: var(--pen-red); display: none; }
 .cx-piece.is-checked .cx-bang { display: block; }
+.cx-piece.is-startled .cx-bang { display: block; }
+.d-boo { font: 700 30px/1 var(--sketch); fill: #3c6fc0; }
 .cx-pow__text { font: 700 30px var(--sketch); letter-spacing: 0.02em; }
 .cx-fx { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .cx-caption { position: absolute; left: 0; right: 0; top: 40%; margin: 0; text-align: center; pointer-events: none; font: 300 clamp(30px, 4vw, 54px)/1.1 var(--hand); color: var(--ink); opacity: 0; text-shadow: 0 0 12px var(--paper), 0 0 24px var(--paper); }
