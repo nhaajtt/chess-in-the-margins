@@ -94,13 +94,11 @@
     parent.append(holder);
     return holder;
   }
-  // the board boils six times a second; the big doodle layer only three times, since every swap repaints it whole
+  // the board and the doodles boil six times a second
   if (anim) {
-    let frame = 0, last = 0, decoFrame = 0, decoLast = 0;
-    const decoLayer = $("deco");
+    let frame = 0, last = 0;
     G.ticker.add((t) => {
-      if (t - last >= 0.16) { last = t; frame = (frame + 1) % 3; for (const s of boiling) if (s !== decoLayer) s.dataset.boil = frame; }
-      if (t - decoLast >= 0.16) { decoLast = t; decoFrame = (decoFrame + 1) % 3; decoLayer.dataset.boil = decoFrame; }
+      if (t - last >= 0.16) { last = t; frame = (frame + 1) % 3; for (const s of boiling) s.dataset.boil = frame; }
     });
   }
   boiling.forEach((s) => { s.dataset.boil = 0; });
@@ -281,12 +279,10 @@
   }
 
   // the creature's own life (breathing, swaying, blinking, looking around) comes from creatures.js
-  // the creatures' idle life (breathing, swaying, fidgeting) runs on its own clock, stepped 30 times a second:
-  // each step repaints every creature, and at that size nobody can tell 30 from 60 for a slow sway
+  // the creatures' idle life (breathing, swaying, fidgeting) runs on its own clock, moved on every frame
   const lifeClock = G.timeline({ paused: true });
   if (anim) {
     const t0 = G.ticker.time;
-    let last = -1;
     G.ticker.add((t) => { lifeClock.time(t - t0, false); });
   }
   function wake(el) {
@@ -329,6 +325,8 @@
         CR.drawIn(el.__c, drawAt + f * 0.2 + (back ? 0 : 0.08) + (colorOf(el.__p) ? 0.1 : 0), 0.8);
       }
       const done = drawAt + 8 * 0.2 + 0.9;
+      penBusy = true;
+      G.delayedCall(done, () => { penBusy = false; bakePieces(); });
       G.delayedCall(done, () => { for (const [, el] of els) { const c = el.__c; if (c.state !== "open") continue; CR.setFace(c, "happy", c.spec.face.beak ? "open" : "grin"); G.delayedCall(R(0.6, 1.1), () => CR.restFace(c)); G.fromTo(el.__act, { y: 0 }, { y: -12, duration: 0.18, yoyo: true, repeat: 1, ease: "power2.out", delay: R(0, 0.3) }); } });
     } else if (entrance && anim) {
       // they hop in from the edge of the page, one rank at a time
@@ -337,9 +335,22 @@
         G.from(el.__act, { y: fromTop ? -260 : 260, opacity: 0, rotation: R(-40, 40), duration: 0.8, ease: "back.out(1.4)", delay: 0.3 + (fromTop ? 7 - r : r) * 0.12 + (sq & 7) * 0.03 });
       }
     }
+    if (!(entrance === "draw" && anim)) { penBusy = false; bakePieces(); }
   }
   // put every creature back on its square; ones in the middle of a move are left alone
   function relayout() { for (const [sq, el] of els) if (!(G && G.isTweening(el))) place(el, sq); }
+
+  // once a creature is drawn its strokes become pictures (see creatures.js), twice as sharp as the
+  // biggest creature on screen so the camera can lean in; a bigger window makes sharper ones
+  let penBusy = false;
+  function bakePieces() {
+    if (penBusy || !els.size) return;
+    let w = 0;
+    for (const [, el] of els) w = Math.max(w, el.__c.svg.getBoundingClientRect().width);
+    if (!w) return;
+    const ppu = Math.min(5, Math.max(1.5, Math.ceil((w / 120) * (window.devicePixelRatio || 1) * 4) / 2));
+    for (const [, el] of els) if (el.__c.ppu < ppu) CR.bake(el.__c, ppu);
+  }
 
   /* ---------- worry, check, sweat ---------- */
 
@@ -758,6 +769,7 @@
     sleep(el);
     el.__c = fresh; el.__p = m.promo; el.dataset.key = key(m.promo);
     if (anim) wake(el);
+    bakePieces();
   }
   async function grow(el, m, job) {
     sfx("grow");
@@ -775,6 +787,7 @@
         Object.assign(el, { __act: fresh.__act, __body: fresh.__body, __c: fresh.__c, __p: m.promo });
         el.dataset.key = key(m.promo);
         wake(el);
+        bakePieces();
         if (job) job.grown = true;
         G.set(el.__act, { rotation: 0, scale: 0.2 });
       })
@@ -1222,21 +1235,34 @@
     boil(outer, draw);
     return outer;
   }
-  // every endless doodle animation runs on one clock that is stepped 30 times a second instead of 60:
-  // the doodle layer is one big SVG and each step repaints all of it, so half the steps is half the work
+  // every endless doodle animation runs on one clock, moved on every frame
   const decoClock = G.timeline({ paused: true });
   if (anim) {
     const t0 = G.ticker.time;
-    let lastStep = -1;
-    // while creatures move or fight, the margins slow to 12 steps a second so the board gets the frame time
     G.ticker.add((t) => { decoClock.time(t - t0, false); });
   }
   const loop = (t) => { decoClock.add(t, decoClock.time()); decoTweens.push(t); return t; };
 
+  // once the doodles are drawn, their still pen strokes become pictures (see creatures.js), so each frame
+  // repaints only what moves; the pictures are let go when the doodles are drawn again
+  let decoPics = [], decoGen = 0;
+  function flattenDeco(after) {
+    const gen = ++decoGen;
+    G.delayedCall(after, async () => {
+      if (gen !== decoGen) return;
+      const ppu = Math.min(4, Math.max(1.5, (window.devicePixelRatio || 1) * 1.5));
+      const urls = await CR.flatten(deco, ppu);
+      if (gen !== decoGen) { urls.forEach((u) => URL.revokeObjectURL(u)); return; }
+      decoPics.push(...urls);
+    });
+  }
   function drawDeco() {
     const W = deco.clientWidth, H = deco.clientHeight;
     if (!W || !H) return;
     decoDrawnAt = [W, H];
+    decoGen++;
+    decoPics.forEach((u) => URL.revokeObjectURL(u));
+    decoPics = [];
     decoTweens.forEach((t) => t.kill());
     decoTweens = [];
     deco.setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -2131,6 +2157,7 @@
       }
     }
     whale(true);
+    if (anim) flattenDeco(0.3);
   }
   let pencilsAt = null;
   // the pencil and crayon roll a little whenever someone moves
@@ -2155,6 +2182,7 @@
       if (fills.length) tl.to(fills, { opacity: 1, duration: 0.6, ease: "none", stagger: { each: 0.3 / fills.length } }, paths.length ? "-=0.35" : 0);
       if (texts.length) tl.to(texts, { opacity: 1, duration: 0.3 }, "-=0.2");
     });
+    flattenDeco(at + Math.min(groups.length * 0.05, 2.2) + 1.8);
   }
   function whale(instant = false) {
     if (!whaleClip) return;
@@ -2296,7 +2324,7 @@
   document.querySelectorAll('input[name="clock"]').forEach((i) => i.addEventListener("change", () => { minutes = Number(i.value); if (!busy) newGame(); }));
 
   let resizeTimer = 0;
-  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!busy) { tiltNow = cssTilt(); setBoardTransform(); } relayout(); drawDeco(); }, 120); });
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!busy) { tiltNow = cssTilt(); setBoardTransform(); } relayout(); drawDeco(); bakePieces(); }, 120); });
 
 
   /* ---------- playing a friend online ----------

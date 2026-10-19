@@ -405,6 +405,7 @@
   // the pen draws the outline, then the crayon colours it in
   function drawIn(c, at = 0, dur = 0.9) {
     const G = root.gsap;
+    unbake(c);
     const outlines = [...c.svg.querySelectorAll(".ol path")];
     const fills = [...c.svg.querySelectorAll(".fl")];
     const faceBits = [...c.face.querySelectorAll("path")];
@@ -419,5 +420,151 @@
     return tl;
   }
 
-  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, SPECS };
+  /* ---------- baking: the finished pen and crayon lines become pictures ---------- */
+  // A moving limb makes the browser paint its whole creature again, every frame, and a creature is
+  // some two thousand little pen strokes. Once a creature is drawn, each copy of each part becomes one
+  // picture of exactly those strokes (sharper than it shows on screen), so a frame paints a handful of
+  // pictures instead. The parts, joints and boiling copies stay as they were.
+  // Creatures of one kind are drawn with the same seeds, so one set of pictures serves them all.
+  const baked = new Map();
+  function bakeOne(id, g, ppu) {
+    const k = `${id}@${ppu}`;
+    if (baked.has(k)) return baked.get(k);
+    const b = g.getBBox(), pad = 3;
+    const x = b.x - pad, y = b.y - pad, w = b.width + pad * 2, h = b.height + pad * 2;
+    const W = Math.max(1, Math.ceil(w * ppu)), H = Math.max(1, Math.ceil(h * ppu));
+    const copy = g.cloneNode(true);
+    copy.removeAttribute("class");
+    copy.removeAttribute("transform");
+    copy.removeAttribute("data-o");
+    copy.querySelectorAll("[style]").forEach((n) => n.removeAttribute("style"));
+    const src = `<svg xmlns="${NS}" viewBox="${x} ${y} ${w} ${h}" width="${W}" height="${H}">${new XMLSerializer().serializeToString(copy)}</svg>`;
+    const job = new Promise((ok, no) => {
+      const im = new Image();
+      im.onload = () => {
+        const cv = document.createElement("canvas");
+        cv.width = W; cv.height = H;
+        cv.getContext("2d").drawImage(im, 0, 0, W, H);
+        cv.toBlob((blob) => (blob ? ok({ url: URL.createObjectURL(blob), x, y, w, h }) : no(new Error("bake"))), "image/png");
+      };
+      im.onerror = () => no(new Error("bake"));
+      im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+    });
+    baked.set(k, job);
+    job.catch(() => baked.delete(k));
+    return job;
+  }
+  // ppu: picture pixels per drawing unit, picked by the page from the creature's size on screen
+  async function bake(c, ppu) {
+    if (c.ppu === ppu) return true;
+    unbake(c);
+    const groups = [];
+    c.svg.querySelectorAll(".p").forEach((p) => {
+      const copies = [...p.children].filter((n) => /^f\d$/.test(n.getAttribute("class") || ""));
+      if (copies.length) copies.forEach((g) => groups.push([`${c.key}/${p.getAttribute("class")}/${g.getAttribute("class")}`, g]));
+      else if (p.classList.contains("p-shadow")) groups.push([`${c.key}/shadow`, p]);
+    });
+    const token = (c.bakeToken = {});
+    let pics;
+    try { pics = await Promise.all(groups.map(([id, g]) => bakeOne(id, g, ppu))); } catch { return false; }
+    if (c.bakeToken !== token) return false;
+    c.orig = new Map();
+    groups.forEach(([, g], i) => {
+      const keep = document.createDocumentFragment();
+      keep.append(...g.childNodes);
+      c.orig.set(g, keep);
+      const pic = pics[i];
+      g.append(el("image", { href: pic.url, x: pic.x, y: pic.y, width: pic.w, height: pic.h, preserveAspectRatio: "none" }));
+    });
+    c.ppu = ppu;
+    return true;
+  }
+  // back to pen strokes, before the pen draws it again
+  function unbake(c) {
+    c.bakeToken = null;
+    if (c.orig) for (const [g, keep] of c.orig) g.replaceChildren(keep);
+    c.orig = null;
+    c.ppu = 0;
+  }
+
+  // The same for a whole drawing that has its own moving bits (the doodles round the page): only runs of
+  // plain, still pen strokes become pictures. Anything with a name (a class or an id), a transform, a
+  // style of its own, text, or an animation stays exactly as it is, so everything that moves still moves.
+  const PLAIN = new Set(["d", "stroke", "stroke-width", "fill", "fill-opacity", "stroke-opacity", "opacity", "stroke-linecap", "stroke-linejoin", "stroke-dasharray"]);
+  function still(n, moving) {
+    if (n.nodeType !== 1) return n.nodeType === 3 && !n.textContent.trim();
+    const tag = n.localName;
+    if (tag !== "g" && tag !== "path") return false;
+    for (const a of n.attributes) {
+      if (a.name === "style") { if (a.value.replace(/opacity:\s*1;?/g, "").trim()) return false; continue; }
+      if (!PLAIN.has(a.name)) return false;
+    }
+    if (moving.has(n)) return false;
+    for (const c of n.childNodes) if (!still(c, moving)) return false;
+    return true;
+  }
+  function picture(nodes, ppu) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of nodes) {
+      if (n.nodeType !== 1) continue;
+      const b = n.getBBox();
+      if (!b.width && !b.height) continue;
+      x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+    }
+    if (!(x1 > x0)) return Promise.resolve(null);
+    const pad = 4, x = x0 - pad, y = y0 - pad, w = x1 - x0 + pad * 2, h = y1 - y0 + pad * 2;
+    const W = Math.max(1, Math.ceil(w * ppu)), H = Math.max(1, Math.ceil(h * ppu));
+    const xs = new XMLSerializer();
+    let body = "";
+    for (const n of nodes) {
+      if (n.nodeType !== 1) continue;
+      const copy = n.cloneNode(true);
+      [copy, ...copy.querySelectorAll("[style]")].forEach((m) => m.removeAttribute("style"));
+      body += xs.serializeToString(copy);
+    }
+    const src = `<svg xmlns="${NS}" viewBox="${x} ${y} ${w} ${h}" width="${W}" height="${H}">${body}</svg>`;
+    return new Promise((ok) => {
+      const im = new Image();
+      im.onload = () => {
+        const cv = document.createElement("canvas");
+        cv.width = W; cv.height = H;
+        cv.getContext("2d").drawImage(im, 0, 0, W, H);
+        cv.toBlob((blob) => ok(blob ? { url: URL.createObjectURL(blob), x, y, w, h } : null), "image/png");
+      };
+      im.onerror = () => ok(null);
+      im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+    });
+  }
+  // returns the picture addresses, so the page can let them go when the drawing is thrown away
+  async function flatten(top, ppu, minMoves = 24) {
+    const moving = new Set();
+    if (root.gsap) root.gsap.globalTimeline.getChildren(true, true, false).forEach((t) => t.targets().forEach((x) => moving.add(x)));
+    const runs = [];
+    const walkRuns = (g) => {
+      let run = [];
+      const close = () => { if (run.filter((n) => n.nodeType === 1).length) runs.push(run); run = []; };
+      for (const c of [...g.childNodes]) {
+        if (still(c, moving)) run.push(c);
+        else { close(); if (c.nodeType === 1 && c.localName === "g") walkRuns(c); }
+      }
+      close();
+    };
+    walkRuns(top);
+    // a picture only pays for itself in place of a good handful of pen moves
+    const moves = (p) => ((p.getAttribute("d") || "").match(/[a-z]/gi) || []).length;
+    const worth = runs.filter((r) => r.reduce((k, n) => k + (n.nodeType !== 1 ? 0 : n.localName === "path" ? moves(n) : [...n.querySelectorAll("path")].reduce((j, q) => j + moves(q), 0)), 0) >= minMoves);
+    const pics = await Promise.all(worth.map((r) => picture(r, ppu)));
+    const urls = [];
+    worth.forEach((r, i) => {
+      const pic = pics[i];
+      const first = r.find((n) => n.nodeType === 1);
+      if (!pic || !first || !first.isConnected) { if (pic) URL.revokeObjectURL(pic.url); return; }
+      first.before(el("image", { href: pic.url, x: pic.x, y: pic.y, width: pic.w, height: pic.h, preserveAspectRatio: "none" }));
+      r.forEach((n) => n.remove());
+      urls.push(pic.url);
+    });
+    return urls;
+  }
+
+  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, flatten, SPECS };
 })(typeof window !== "undefined" ? window : this);
