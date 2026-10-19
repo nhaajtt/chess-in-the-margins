@@ -1,7 +1,7 @@
 {
   "framework": null,
   "cleanUrls": true,
-  "rewrites": [{ "source": "/r/:code", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/r/:code", "destination": "/" }],
   "headers": [
     {
       "source": "/(.*)",
