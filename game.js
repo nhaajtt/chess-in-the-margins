@@ -28,6 +28,8 @@
   const colorOf = (p) => (p & BLACK ? 1 : 0);
   const all = () => { const out = []; for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) out.push(r * 16 + f); return out; };
   const CR = window.Creature;
+  const SND = window.Sound || { play() {}, on: false, set() {} };
+  const sfx = (...a) => SND.play(...a);
   // a small still drawing of a creature, for the trays and the promotion choice
   const mini = (p) => CR.make(p, { copies: 1 }).svg;
 
@@ -170,6 +172,7 @@
     const labels = [...ink.querySelectorAll(".cx-labels text")];
     G.set(labels, { opacity: 0 });
     const tl = G.timeline({ delay: at, onComplete: () => { undash([...vs.flat(), ...hs.flat(), ...squares]); } });
+    for (let i = 0; i < 18; i++) tl.call(() => sfx("scratch", 0.25), null, i * 0.09 + (i > 8 ? 0.05 : 0));
     vs.forEach((l, i) => tl.to(l, { strokeDashoffset: 0, duration: 0.32, ease: "power1.inOut" }, i * 0.09));
     hs.forEach((l, i) => tl.to(l, { strokeDashoffset: 0, duration: 0.32, ease: "power1.inOut" }, 0.85 + i * 0.09));
     tl.to(washes, { opacity: 1, duration: 0.45, ease: "none", stagger: { each: 0.9 / Math.max(1, washes.length), from: "random" } }, 1.6);
@@ -544,6 +547,7 @@
     selected = sq;
     legal = game.moves({ from: sq });
     drawMarks(sq, true);
+    { const p = game.get(sq); sfx("select", p & 7, colorOf(p)); for (let i = 0; i < Math.min(6, new Set(legal.map((m) => m.to)).size); i++) sfx("hint", i); }
     if (!anim) return;
     const el = els.get(sq);
     // the chosen one jumps for joy and waves; its friends turn to look at it
@@ -564,6 +568,7 @@
     }
   }
   function deselect() {
+    if (selected >= 0) sfx("deselect");
     if (selected >= 0 && anim) {
       const ring = marks.querySelector(".cx-ring");
       if (ring) {
@@ -634,7 +639,7 @@
     const t = spot(m.to);
     camTo(t.x, t.y - t.w * 0.4, victim ? 1.14 : 1.05, victim ? 1.4 : 0.2);
     if (victim) await fight(mover, victim, m, victimSq);
-    else if (rook) await Promise.all([travel(mover, m.from, m.to, 6), travel(rook.el, rook.from, rook.to, 4, 0.12)]);
+    else if (rook) { sfx("castle"); await Promise.all([travel(mover, m.from, m.to, 6), travel(rook.el, rook.from, rook.to, 4, 0.12)]); }
     else await travel(mover, m.from, m.to, m.piece & 7);
 
     if (m.promo) await grow(mover, m);
@@ -654,7 +659,7 @@
     const to2 = (s) => ({ x: s.x - s.w / 2, y: s.y - s.w, scale: s.k });
     const gait = CR.walk(el.__c, kind === 2 ? 0.09 : kind === 6 ? 0.2 : 0.13);
     gait.pause();
-    const tl = G.timeline({ delay, onStart: () => gait.play(), onComplete: () => { gait.kill(); CR.settle(el.__c); end(); } });
+    const tl = G.timeline({ delay, onStart: () => { gait.play(); if (kind === 2) sfx("boing", 2); else if (kind === 4 || kind === 5) sfx("step", kind); }, onComplete: () => { gait.kill(); CR.settle(el.__c); end(); } });
     // anticipation: crouch and lean back
     tl.to(act, { scaleY: 0.8, scaleX: 1.14, rotation: -dir * 6, transformOrigin: "50% 100%", duration: 0.14, ease: "power2.in" });
     const steps = kind === 1 || kind === 3 || kind === 6 ? Math.max(1, dist) : 1;
@@ -687,17 +692,18 @@
         tl.to(act, { scaleY: 1.08, scaleX: 0.94, rotation: kind === 6 ? (i % 2 ? 9 : -9) : 0, duration: 0.08 })
           .to(el, { x: pos.x, scale: mid.k, duration: d, ease: "power1.inOut" }, ">")
           .to(el, { keyframes: [{ y: Math.min(prevY, pos.y) - lift, duration: d / 2, ease: "power2.out" }, { y: pos.y, duration: d / 2, ease: "power2.in" }] }, "<")
-          .call(() => dust(G.getProperty(el, "x") + mid.w / 2, G.getProperty(el, "y") + mid.w, 2));
+          .call(() => { dust(G.getProperty(el, "x") + mid.w / 2, G.getProperty(el, "y") + mid.w, 2); sfx("step", kind); });
       }
     }
     // landing: squash, then spring back
     tl.to(act, { scaleY: 0.78, scaleX: 1.18, rotation: 0, duration: 0.07 })
-      .call(() => dust(b.x, b.y, 3))
+      .call(() => { dust(b.x, b.y, 3); sfx("land"); })
       .to(act, { scaleY: 1, scaleX: 1, duration: 0.55, ease: "elastic.out(1, 0.4)" });
     return play(tl);
   }
 
   async function grow(el, m) {
+    sfx("grow");
     const s = spot(m.to);
     if (!anim) { const fresh = CR.make(m.promo); el.__c.svg.replaceWith(fresh.svg); el.__c = fresh; el.__p = m.promo; return; }
     burst(s.x, s.y - s.w * 0.5, 10);
@@ -820,6 +826,7 @@
     // the victim notices: wide-eyed, a jump back
     const others = [...els].filter(([s2, el]) => el !== mover && Math.max(Math.abs((s2 & 7) - (victimSq & 7)), Math.abs((s2 >> 4) - (victimSq >> 4))) === 1).map(([, el]) => el);
     G.timeline().to(victim.__act, { y: -14, scaleY: 1.12, duration: 0.15, ease: "power2.out" }).to(victim.__act, { y: 0, scaleY: 1, duration: 0.3, ease: "bounce.out" });
+    sfx("whoosh");
     // the attacker charges to just short of the square
     const near = { x: a.x + (t.x - a.x) * 0.62, y: a.y + (t.y - a.y) * 0.62, w: t.w, k: t.k };
     mover.style.zIndex = String(Number(zOf(t)) + 60);
@@ -834,6 +841,7 @@
     CR.setFace(victim.__c, "scared", victim.__c.spec.face.beak ? "open" : "open");
     limbs(mover.__c, kind, dir);
     await play((MOVES[kind] || MOVES[1])(ctx));
+    sfx("hit", kind, side);
     // impact: a word, stars, the camera shakes, the neighbours jump
     const hx = t.x, hy = t.y - t.w * 0.55;
     word(pick([WORDS[kind][side], WORDS[kind][side], "POW!"]), hx, hy - t.w * 0.5, side ? "#3c4fb8" : "#e8432e");
@@ -851,6 +859,8 @@
     CR.setFace(vc, "hurt", vc.spec.face.beak ? "open" : "open");
     G.delayedCall(0.45, () => CR.setFace(vc, "dizzy", vc.spec.face.beak ? "none" : "wavy"));
     hatOff(vc, dir);
+    if (vc.hat) sfx("pop");
+    setTimeout(() => sfx("dizzy"), 450);
     // legs and arms fly up as it goes over
     vc.legs.forEach((l, i) => G.to(l, { rotation: dir * (i % 2 ? 40 : 60), svgOrigin: l.dataset.o, duration: 0.3, ease: "power2.out" }));
     vc.arms.forEach((a, i) => G.to(a, { rotation: (i ? -1 : 1) * 120, svgOrigin: a.dataset.o, duration: 0.3, ease: "power2.out" }));
@@ -865,6 +875,7 @@
     // (one plain hop from where it stands; "0" is no kind's gait, so it hops once)
     const landing = travel(mover, m.from, m.to, 0);
     await wait(500);
+    sfx("float");
     // the loser floats up as a little ghost and drifts off to the tray
     const trayBox = tray.getBoundingClientRect(), camBox = cam.getBoundingClientRect();
     const tx = trayBox.left - camBox.left + Math.min(trayBox.width, 200), ty = trayBox.top - camBox.top;
@@ -925,6 +936,7 @@
     clockSwitch();
     statusLine(st, m);
     if (st.check) {
+      sfx("check");
       // the camera pushes in on the king in check and the stars on the string shake
       const k = [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === game.turn);
       if (k) { const s = spot(k[0]); camTo(s.x, s.y - s.w * 0.4, 1.1, 0.6); }
@@ -972,6 +984,7 @@
   // a sticky note that comments on the game; each new note is slapped on and written out
   function note(text) {
     talk.textContent = text;
+    sfx("note");
     if (!anim) return;
     G.timeline()
       .fromTo(talk, { rotationX: -70, y: -20, opacity: 0.3, transformPerspective: 600, transformOrigin: "50% 0%" }, { rotationX: 0, y: 0, opacity: 1, duration: 0.55, ease: "back.out(2)" })
@@ -999,6 +1012,12 @@
 
   function finish(st) {
     over = st;
+    if (st.reason === "checkmate" || st.reason === "resigned" || st.reason === "time") {
+      const winner = st.result === "1-0" ? 0 : 1;
+      // online or against the computer, the fanfare is for whoever won from where you sit
+      const mine = mode === "friend" ? true : winner === human;
+      sfx(mine ? "win" : "lose");
+    } else sfx("draw");
     stopClock();
     let text;
     if (st.reason === "checkmate" || st.reason === "resigned" || st.reason === "time") {
@@ -1073,6 +1092,7 @@
     box.append(s);
     if (anim) G.fromTo(s, { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.3 });
     box.closest(".cx-clock").classList.toggle("is-low", left[side] < 30000);
+    if (left[side] < 10000 && left[side] > 0) sfx("tick");
   }
   function startClock() {
     stopClock();
@@ -2070,6 +2090,7 @@
     else whaleClip.setAttribute("width", String(w));
   }
   function spout() {
+    sfx("spout");
     if (!anim) return;
     const s = deco.querySelector(".d-spout");
     if (s) G.timeline().to(s, { opacity: 1, scaleY: 1.8, svgOrigin: "96 46", duration: 0.25, ease: "power2.out" }).to(s, { scaleY: 1, opacity: 0.3, duration: 0.8 });
@@ -2378,6 +2399,7 @@
   // an emote: that side's king pipes up with a word and a little hop
   const SAY = { wave: "hi!", laugh: "ha ha!", grr: "grr!", yawn: "yaaawn", love: "\u2665", shock: "!!" };
   function emote(side, e) {
+    sfx("emote", e, side);
     const k = [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === side);
     if (!k) return;
     const [sq, el] = k, s2 = spot(sq), c = el.__c;
@@ -2401,6 +2423,12 @@
     }
   }
   showOnline();
+
+  /* ---------- sound ---------- */
+
+  const soundBtn = $("sound");
+  const paintSound = () => { soundBtn.textContent = SND.on ? "sound: on" : "sound: off"; soundBtn.setAttribute("aria-pressed", String(SND.on)); };
+  if (soundBtn) { paintSound(); soundBtn.addEventListener("click", () => { SND.set(!SND.on); paintSound(); }); }
 
   /* ---------- the opening, once per visitor ---------- */
 
@@ -2668,6 +2696,7 @@
     function drawScene(sc, g, tl, at) {
       const { inks, texts, crs } = sc.items;
       // the caption is written first, the English line then the Vietnamese one
+      tl.call(() => sfx("scratch", 1.2), null, at);
       texts.forEach((t, i) => {
         tl.fromTo(t, { strokeDashoffset: 2600, fillOpacity: 0 }, { strokeDashoffset: 0, duration: 1.3, ease: "power1.inOut" }, at + i * 0.35)
           .to(t, { fillOpacity: 1, duration: 0.5 }, at + i * 0.35 + 0.9);
@@ -2689,6 +2718,7 @@
       });
       const drawn = at + Math.max(2.4, 1 + crs.length * 0.22 + 1, texts.length * 0.35 + 1.6);
       (sc.items.inkActs || []).forEach(([el, act]) => tl.call(() => { if (!cancelled) act(el); }, null, drawn - 0.3));
+      (sc.items.pops || []).forEach(([t, when]) => tl.call(() => sfx("pop"), null, at + when));
       (sc.items.pops || []).forEach(([t, when]) => tl.fromTo(t, { opacity: 0, scale: 0.2, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(3)" }, at + when));
       return drawn;
     }
@@ -2700,6 +2730,7 @@
     G.set(eraser, { opacity: 0 });
     function eraseScene(g, sc, tl, at, dur = 1.3) {
       const { inks, texts, crs } = sc.items;
+      tl.call(() => sfx("erase", dur), null, at);
       tl.call(() => { svg.append(eraser); }, null, at)
         .set(eraser, { opacity: 1, x: -40, y: 160, rotation: -25 }, at)
         .to(eraser, { x: 1040, duration: dur, ease: "none" }, at)
