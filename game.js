@@ -575,7 +575,7 @@
     legal = game.moves({ from: sq });
     drawMarks(sq, true);
     fidget(sq);
-    { const p = game.get(sq); sfx("select", p & 7, colorOf(p)); for (let i = 0; i < Math.min(6, new Set(legal.map((m) => m.to)).size); i++) sfx("hint", i); }
+    { const p = game.get(sq); sfx("select", p & 7, colorOf(p)); }
     if (!anim) return;
     const el = els.get(sq);
     // the chosen one jumps for joy and waves; its friends turn to look at it
