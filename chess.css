@@ -250,7 +250,7 @@ button { font: inherit; color: inherit; }
 /* ---------- night: a dark sky full of stars; ink turns to chalk ---------- */
 body.is-night {
   --ink: #ecebf8; --ink-2: #c3c8e0; --pen-blue: #a9bbff; --pen-red: #ff9f8a; --paper: #16245a;
-  background-color: #101a40; background-image: var(--night-img, none); background-size: max(100%, 1400px) auto;
+  background-color: #101a40; background-image: var(--night-img, none); background-size: cover; background-attachment: fixed;
   transition: background-color 1.2s;
 }
 .cx-sky { position: fixed; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
