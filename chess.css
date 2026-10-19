@@ -43,7 +43,7 @@ button { font: inherit; color: inherit; }
 .cx-page { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "title title" "table side"; gap: 8px clamp(20px, 3vw, 48px); padding: 0 clamp(16px, 3vw, 40px) 190px; max-width: 1240px; margin: 0 auto; }
 .cx-title { grid-area: title; margin: 84px 0 0; text-align: center; font: 300 clamp(30px, 3.4vw, 46px)/1.1 var(--hand); letter-spacing: 0.01em; position: relative; z-index: 2; }
 .cx-table { grid-area: table; align-self: start; position: relative; display: grid; place-items: start center; padding-top: 12px; }
-.cx-cam { position: relative; isolation: isolate; width: var(--S); aspect-ratio: 920 / 880; transform-origin: 50% 50%; }
+.cx-cam { position: relative; isolation: isolate; will-change: transform; width: var(--S); aspect-ratio: 920 / 880; transform-origin: 50% 50%; }
 /* the tilt and the spin are driven from game.js, so the camera can come down and the board can turn */
 .cx-board { position: absolute; inset: 0; transform: perspective(1400px) rotateX(var(--tilt-now, var(--tilt))) rotateZ(var(--spin, 0deg)); transform-origin: 50% 50%; outline: none; }
 /* boiling lines: each drawing exists three times and only one copy shows per frame */
@@ -60,6 +60,8 @@ button { font: inherit; color: inherit; }
 .cx-piece { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; will-change: transform; }
 /* three layers per creature: .cx-piece is placed on its square, .cx-act carries what it does, .cx-body its breathing */
 .cx-act, .cx-body { position: relative; transform-origin: 50% 100%; }
+/* each creature gets its own layer, so one moving never makes the others repaint */
+.cx-piece { will-change: transform; }
 /* a creature drawn in code (creatures.js); every part is drawn twice and the copies take turns */
 .cr { display: block; width: 100%; height: auto; overflow: visible; pointer-events: none; }
 [data-cboil="0"] .cr .f1, [data-cboil="1"] .cr .f0 { visibility: hidden; }

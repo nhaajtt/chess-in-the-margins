@@ -16,7 +16,7 @@
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
   const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
   // wait for a timeline without taking over its own onComplete (props clean themselves up there)
-  const play = (tl) => new Promise((ok) => { tl.then(() => ok()); });
+  const play = (tl) => new Promise((ok) => { tl.then(() => ok()); tl.eventCallback("onInterrupt", () => ok()); });
 
   const KIND = ["", "pawn", "knight", "bishop", "rook", "queen", "king"];
   // [orange team, purple team]
@@ -94,13 +94,13 @@
     parent.append(holder);
     return holder;
   }
+  // the board boils six times a second; the big doodle layer only three times, since every swap repaints it whole
   if (anim) {
-    let frame = 0, last = 0;
+    let frame = 0, last = 0, decoFrame = 0, decoLast = 0;
+    const decoLayer = $("deco");
     G.ticker.add((t) => {
-      if (t - last < 0.16) return;
-      last = t;
-      frame = (frame + 1) % 3;
-      for (const s of boiling) s.dataset.boil = frame;
+      if (t - last >= 0.16) { last = t; frame = (frame + 1) % 3; for (const s of boiling) if (s !== decoLayer) s.dataset.boil = frame; }
+      if (t - decoLast >= 0.16) { decoLast = t; decoFrame = (decoFrame + 1) % 3; decoLayer.dataset.boil = decoFrame; }
     });
   }
   boiling.forEach((s) => { s.dataset.boil = 0; });
@@ -281,10 +281,18 @@
   }
 
   // the creature's own life (breathing, swaying, blinking, looking around) comes from creatures.js
+  // the creatures' idle life (breathing, swaying, fidgeting) runs on its own clock, stepped 30 times a second:
+  // each step repaints every creature, and at that size nobody can tell 30 from 60 for a slow sway
+  const lifeClock = G.timeline({ paused: true });
+  if (anim) {
+    const t0 = G.ticker.time;
+    let last = -1;
+    G.ticker.add((t) => { lifeClock.time(t - t0, false); });
+  }
   function wake(el) {
     sleep(el);
     el.__live = CR.live(el.__c);
-    el.__live.tweens.forEach((t) => t.progress(Math.random()));
+    el.__live.tweens.forEach((t) => { lifeClock.add(t, lifeClock.time()); t.progress(Math.random()); });
   }
   function sleep(el) {
     if (el.__live) el.__live.kill();
@@ -594,7 +602,7 @@
       return;
     }
     selected = -1; legal = [];
-    await playMove(m);
+    playMove(m);
     if (!over && mode === "cpu" && game.turn !== human) computer();
   }
 
@@ -618,8 +626,13 @@
 
   /* ---------- moving: every kind travels its own way ---------- */
 
+  // The game moves on at once: the board state, the move list, the turn and the clock update immediately,
+  // and the animation plays alongside. If the next move comes before it ends, it is finished on the spot,
+  // so quick players never wait for a creature to finish its little show.
+  let motion = null;
+  function finishMotion() { if (motion && !motion.done) motion.finishNow(); }
   async function playMove(m) {
-    busy = true;
+    finishMotion();
     const us = game.turn;
     const victimSq = m.flags & E.F_EP ? m.to + (us ? 16 : -16) : m.to;
     const mover = els.get(m.from), victim = m.captured ? els.get(victimSq) : null;
@@ -636,19 +649,56 @@
     els.set(m.to, mover);
     if (peeked) { G.to(peeked.__act, { y: 0, rotation: 0, duration: 0.2 }); peeked = null; }
 
-    const t = spot(m.to);
-    camTo(t.x, t.y - t.w * 0.4, victim ? 1.14 : 1.05, victim ? 1.4 : 0.2);
-    if (victim) await fight(mover, victim, m, victimSq);
-    else if (rook) { sfx("castle"); await Promise.all([travel(mover, m.from, m.to, 6), travel(rook.el, rook.from, rook.to, 4, 0.12)]); }
-    else await travel(mover, m.from, m.to, m.piece & 7);
+    const tray = victim ? $(`tray-${colorOf(m.captured)}`) : null;
+    const job = { done: false, tls: [], trayed: false, grown: false, stopDizzy: null };
+    job.track = (tl) => { job.tls.push(tl); return play(tl); };
+    job.addToTray = () => {
+      if (job.trayed || !tray) return;
+      job.trayed = true;
+      const im = mini(m.captured);
+      tray.append(im);
+      if (anim) G.from(im, { y: -40, rotation: R(-180, 180), scale: 0.3, duration: 0.8, ease: "bounce.out" });
+    };
+    // put everything where the move left it, right now
+    job.finishNow = () => {
+      if (job.done) return;
+      job.done = true;
+      job.tls.forEach((t) => t.kill());
+      const fix = (el, sq) => {
+        if (!el) return;
+        G.killTweensOf([el, el.__act]);
+        G.set(el.__act, { x: 0, y: 0, rotation: 0, scale: 1, scaleX: 1, scaleY: 1 });
+        el.style.opacity = "";
+        place(el, sq);
+        CR.settle(el.__c);
+      };
+      fix(mover, m.to);
+      if (rook) fix(rook.el, rook.to);
+      if (job.stopDizzy) job.stopDizzy();
+      if (victim) { G.killTweensOf([victim, victim.__act]); victim.remove(); job.addToTray(); }
+      if (m.promo && !job.grown) growNow(mover, m);
+      paintWorry();
+    };
+    motion = job;
 
-    if (m.promo) await grow(mover, m);
     afterMove(m, san);
-    busy = false;
+    job.promise = (async () => {
+      const t = spot(m.to);
+      camTo(t.x, t.y - t.w * 0.4, victim ? 1.14 : 1.05, victim ? 1.4 : 0.2);
+      if (victim) await fight(mover, victim, m, victimSq, job);
+      else if (rook) { sfx("castle"); await Promise.all([travel(mover, m.from, m.to, 6, 0, job), travel(rook.el, rook.from, rook.to, 4, 0.12, job)]); }
+      else await travel(mover, m.from, m.to, m.piece & 7, 0, job);
+      if (job.done) return;
+      if (m.promo) { await grow(mover, m, job); job.grown = true; }
+      if (job.done) return;
+      job.done = true;
+      paintWorry();
+    })();
+    return job.promise;
   }
 
   // the creature's feet go from one square to the next with its kind's gait
-  function travel(el, from, to, kind, delay = 0) {
+  function travel(el, from, to, kind, delay = 0, job = null) {
     const a = spot(from), b = spot(to);
     el.style.zIndex = String(Math.max(Number(zOf(a)), Number(zOf(b))) + 50);
     const end = () => { place(el, to); };
@@ -659,7 +709,7 @@
     const to2 = (s) => ({ x: s.x - s.w / 2, y: s.y - s.w, scale: s.k });
     const gait = CR.walk(el.__c, kind === 2 ? 0.09 : kind === 6 ? 0.2 : 0.13);
     gait.pause();
-    const tl = G.timeline({ delay, onStart: () => { gait.play(); if (kind === 2) sfx("boing", 2); else if (kind === 4 || kind === 5) sfx("step", kind); }, onComplete: () => { gait.kill(); CR.settle(el.__c); end(); } });
+    const tl = G.timeline({ delay, onInterrupt: () => { gait.kill(); CR.settle(el.__c); }, onStart: () => { gait.play(); if (kind === 2) sfx("boing", 2); else if (kind === 4 || kind === 5) sfx("step", kind); }, onComplete: () => { gait.kill(); CR.settle(el.__c); end(); } });
     // anticipation: crouch and lean back
     tl.to(act, { scaleY: 0.8, scaleX: 1.14, rotation: -dir * 6, transformOrigin: "50% 100%", duration: 0.14, ease: "power2.in" });
     const steps = kind === 1 || kind === 3 || kind === 6 ? Math.max(1, dist) : 1;
@@ -699,15 +749,23 @@
     tl.to(act, { scaleY: 0.78, scaleX: 1.18, rotation: 0, duration: 0.07 })
       .call(() => { dust(b.x, b.y, 3); sfx("land"); })
       .to(act, { scaleY: 1, scaleX: 1, duration: 0.55, ease: "elastic.out(1, 0.4)" });
-    return play(tl);
+    return job ? job.track(tl) : play(tl);
   }
 
-  async function grow(el, m) {
+  function growNow(el, m) {
+    const fresh = CR.make(m.promo);
+    el.__c.svg.replaceWith(fresh.svg);
+    sleep(el);
+    el.__c = fresh; el.__p = m.promo; el.dataset.key = key(m.promo);
+    if (anim) wake(el);
+  }
+  async function grow(el, m, job) {
     sfx("grow");
     const s = spot(m.to);
     if (!anim) { const fresh = CR.make(m.promo); el.__c.svg.replaceWith(fresh.svg); el.__c = fresh; el.__p = m.promo; return; }
     burst(s.x, s.y - s.w * 0.5, 10);
-    await play(G.timeline()
+    const track = job ? job.track : play;
+    await track(G.timeline()
       .to(el.__act, { rotation: 720, scale: 0.2, duration: 0.6, ease: "power2.in" })
       .call(() => {
         const fresh = makeEl(m.promo);
@@ -717,6 +775,7 @@
         Object.assign(el, { __act: fresh.__act, __body: fresh.__body, __c: fresh.__c, __p: m.promo });
         el.dataset.key = key(m.promo);
         wake(el);
+        if (job) job.grown = true;
         G.set(el.__act, { rotation: 0, scale: 0.2 });
       })
       .to({}, { duration: 0.01 })
@@ -811,13 +870,9 @@
     }
   }
 
-  async function fight(mover, victim, m, victimSq) {
+  async function fight(mover, victim, m, victimSq, job) {
     const tray = $(`tray-${colorOf(m.captured)}`);
-    const addToTray = () => {
-      const im = mini(m.captured);
-      tray.append(im);
-      if (anim) G.from(im, { y: -40, rotation: R(-180, 180), scale: 0.3, duration: 0.8, ease: "bounce.out" });
-    };
+    const addToTray = job.addToTray;
     if (!anim) { victim.remove(); place(mover, m.to); addToTray(); return; }
     const kind = m.piece & 7, side = colorOf(m.piece);
     const a = spot(m.from), t = spot(victimSq);
@@ -830,17 +885,19 @@
     // the attacker charges to just short of the square
     const near = { x: a.x + (t.x - a.x) * 0.62, y: a.y + (t.y - a.y) * 0.62, w: t.w, k: t.k };
     mover.style.zIndex = String(Number(zOf(t)) + 60);
-    await play(G.timeline()
+    await job.track(G.timeline()
       .to(mover.__act, { scaleY: 0.78, scaleX: 1.16, rotation: -dir * 10, transformOrigin: "50% 100%", duration: 0.22, ease: "power2.in" })
       .to(mover.__act, { scaleY: 1, scaleX: 1, rotation: dir * 6, duration: 0.1 })
       .to(mover, { x: near.x - near.w / 2, y: near.y - near.w, scale: near.k, duration: 0.3, ease: "power2.in" }, "<")
       .call(() => dust(near.x, near.y, 3)));
+    if (job.done) return;
     // its own move, ending at the moment of impact
     const ctx = { ma: mover.__act, side, dir, w: t.w, mx: near.x, my: near.y, tx: t.x, ty: t.y, c: mover.__c };
     CR.setFace(mover.__c, "hurt", mover.__c.spec.face.beak ? "open" : "grin");
     CR.setFace(victim.__c, "scared", victim.__c.spec.face.beak ? "open" : "open");
     limbs(mover.__c, kind, dir);
-    await play((MOVES[kind] || MOVES[1])(ctx));
+    await job.track((MOVES[kind] || MOVES[1])(ctx));
+    if (job.done) return;
     sfx("hit", kind, side);
     // impact: a word, stars, the camera shakes, the neighbours jump
     const hx = t.x, hy = t.y - t.w * 0.55;
@@ -868,26 +925,32 @@
     CR.setFace(mover.__c, "happy", mover.__c.spec.face.beak ? "open" : "grin");
     G.delayedCall(1.6, () => CR.restFace(mover.__c));
     const fallDir = dir;
-    await play(G.timeline()
+    await job.track(G.timeline()
       .to(victim.__act, { rotation: fallDir * 88, x: fallDir * t.w * 0.25, y: t.w * 0.1, scaleY: 0.9, transformOrigin: "50% 95%", duration: 0.35, ease: "bounce.out" }));
+    if (job.done) return;
     const stopDizzy = dizzy(t.x + fallDir * t.w * 0.3, t.y - t.w * 0.18, t.w);
+    job.stopDizzy = stopDizzy;
     // the winner steps onto the square and stamps
     // (one plain hop from where it stands; "0" is no kind's gait, so it hops once)
-    const landing = travel(mover, m.from, m.to, 0);
+    const landing = travel(mover, m.from, m.to, 0, 0, job);
     await wait(500);
+    if (job.done) return;
     sfx("float");
     // the loser floats up as a little ghost and drifts off to the tray
     const trayBox = tray.getBoundingClientRect(), camBox = cam.getBoundingClientRect();
     const tx = trayBox.left - camBox.left + Math.min(trayBox.width, 200), ty = trayBox.top - camBox.top;
-    await play(G.timeline()
+    await job.track(G.timeline()
       .to(victim, { opacity: 0.55, y: `-=${t.w * 0.6}`, duration: 0.5, ease: "sine.out" })
       .to(victim.__act, { rotation: 0, duration: 0.5 }, "<")
       .call(stopDizzy)
       .to(victim, { x: tx, y: ty, scale: 0.25, opacity: 0, duration: 0.8, ease: "power2.in" }));
+    if (job.done) return;
     victim.remove();
+    job.stopDizzy = null;
     addToTray();
     await landing;
-    await play(G.timeline().to(mover.__act, { y: -10, duration: 0.1, yoyo: true, repeat: 3, ease: "power2.out" }));
+    if (job.done) return;
+    await job.track(G.timeline().to(mover.__act, { y: -10, duration: 0.1, yoyo: true, repeat: 3, ease: "power2.out" }));
   }
   // what the attacker's own limbs do on the way in: kicks, wand flicks, wing slaps, a headbutt
   function limbs(c, kind, dir) {
@@ -1064,6 +1127,7 @@
 
   async function computer() {
     busy = true;
+    if (motion && motion.promise) await motion.promise;
     statusLine(game.status());
     await wait(anim ? 650 : 50);
     const t = performance.now();
@@ -1158,7 +1222,16 @@
     boil(outer, draw);
     return outer;
   }
-  const loop = (t) => { decoTweens.push(t); return t; };
+  // every endless doodle animation runs on one clock that is stepped 30 times a second instead of 60:
+  // the doodle layer is one big SVG and each step repaints all of it, so half the steps is half the work
+  const decoClock = G.timeline({ paused: true });
+  if (anim) {
+    const t0 = G.ticker.time;
+    let lastStep = -1;
+    // while creatures move or fight, the margins slow to 12 steps a second so the board gets the frame time
+    G.ticker.add((t) => { decoClock.time(t - t0, false); });
+  }
+  const loop = (t) => { decoClock.add(t, decoClock.time()); decoTweens.push(t); return t; };
 
   function drawDeco() {
     const W = deco.clientWidth, H = deco.clientHeight;
@@ -2123,6 +2196,7 @@
   }
 
   function newGame(first = false) {
+    finishMotion();
     game = new Game();
     over = null; selected = -1; legal = []; lastMove = null; firstCapture = true; busy = false;
     if (mode !== "online") human = mode === "cpu" && $("play-purple").checked ? 1 : 0;
@@ -2168,6 +2242,7 @@
     if (busy) return;
     busy = true;
     deselect();
+    finishMotion();
     if (anim) {
       const o = { s: 0 };
       await play(G.timeline().to(o, { s: 180, duration: 1.2, ease: "power2.inOut", onUpdate: () => { spinNow = o.s; setBoardTransform(); relayout(); } }));
@@ -2181,6 +2256,7 @@
   $("undo").addEventListener("click", () => {
     if (mode === "online") { onlineMsg("No take-backs online."); return; }
     if (busy || !game.played.length) return;
+    finishMotion();
     game.takeBack();
     if (mode === "cpu" && game.turn !== human && game.played.length) game.takeBack();
     over = null; selected = -1; legal = [];
@@ -2339,7 +2415,7 @@
       net.queue = net.queue.then(async () => {
         const m = game.moves().find((x) => x.from === msg.from && x.to === msg.to && (x.promo || 0) === (msg.promo || 0));
         if (!m || game.played.length !== msg.ply - 1) { await resyncFromServer(); return; }
-        await playMove(m);
+        playMove(m);
         net.pending = false;
         if (!over && game.turn === human) writeYourMove(0.2);
         if (msg.result && !over) finish({ over: true, ...msg.result });
@@ -2356,6 +2432,7 @@
 
   // bring the page in line with the room: the same moves, the same result, who is here
   async function applyState(st) {
+    finishMotion();
     net.players = st.players;
     net.spectators = st.spectators;
     renderPlayers(st);
