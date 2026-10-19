@@ -2408,8 +2408,12 @@
   function writeYourMove(at) {
     const y = $("yourmove");
     if (!y || !anim) return;
-    G.fromTo(y, { clipPath: "inset(0 100% 0 0)", opacity: 1 }, { clipPath: "inset(0 0% 0 0)", duration: 1.1, ease: "steps(12)", delay: at });
-    G.to(y, { opacity: 0, duration: 0.6, delay: at + 3.5 });
+    G.delayedCall(at, () => {
+      // online, only the player whose turn it is gets told
+      if (mode === "online" && (game.turn !== human || net.players.length < 2)) return;
+      G.fromTo(y, { clipPath: "inset(0 100% 0 0)", opacity: 1 }, { clipPath: "inset(0 0% 0 0)", duration: 1.1, ease: "steps(12)" });
+      G.to(y, { opacity: 0, duration: 0.6, delay: 3.5 });
+    });
   }
 
   // the opening is a short story told in pen. Each scene is written and drawn on the page,
