@@ -80,10 +80,6 @@ button { font: inherit; color: inherit; }
 .cx-guest svg { display: block; overflow: visible; }
 .t-chalk { font: 700 20px/1 var(--hand); fill: #f3eee2; text-anchor: middle; }
 .t-chalk--red { fill: #ff8a7a; font-size: 24px; }
-/* night: the whole page sinks into a deep blue, slowly */
-body.is-night::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 6; background: rgba(70, 92, 200, 0.24); mix-blend-mode: multiply; animation: cx-dusk 4s ease-out; }
-@keyframes cx-dusk { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { body.is-night::after { animation: none; } }
 /* the cloud and the moon can be grabbed */
 .cx-skyhandle { position: absolute; z-index: 5; padding: 0; border: 0; background: none; border-radius: 50%; cursor: grab; touch-action: none; }
 .cx-skyhandle.is-dragging { cursor: grabbing; }
@@ -250,3 +246,31 @@ body.is-night::after { content: ""; position: fixed; inset: 0; pointer-events: n
   .cx-btn { transition: none; }
 }
 .cx-btn[hidden] { display: none; }
+
+/* ---------- night: a dark sky full of stars; ink turns to chalk ---------- */
+body.is-night {
+  --ink: #ecebf8; --ink-2: #c3c8e0; --pen-blue: #a9bbff; --pen-red: #ff9f8a; --paper: #16245a;
+  background-color: #101a40; background-image: var(--night-img, none); background-size: max(100%, 1400px) auto;
+  transition: background-color 1.2s;
+}
+.cx-sky { position: fixed; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+.cx-sky[hidden] { display: none; }
+.cx-sky i { position: absolute; width: var(--s, 3px); height: var(--s, 3px); border-radius: 50%; background: #fffbe6; box-shadow: 0 0 6px 2px rgba(255, 244, 200, 0.75); animation: cx-twinkle var(--d, 3s) ease-in-out var(--w, 0s) infinite; will-change: opacity, transform; }
+.cx-sky b { position: absolute; width: 120px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fffbe6); transform-origin: 100% 50%; rotate: 25deg; box-shadow: 0 0 8px rgba(255, 250, 220, 0.8); }
+@keyframes cx-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.6); } 50% { opacity: 1; transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .cx-sky i { animation: none; opacity: 0.8; } }
+/* live pen lines (the board, the doodles still moving) switch to chalk; the creatures keep their crayons */
+body.is-night svg:not(.cr) [stroke="#2b2f3a"] { stroke: #ecebf8; }
+body.is-night svg:not(.cr) [stroke="#3c4fb8"] { stroke: #a9bbff; }
+body.is-night svg:not(.cr) [stroke="#4a4d57"] { stroke: #d8dae6; }
+body.is-night svg:not(.cr) [stroke="#5d6170"] { stroke: #cdd1e2; }
+body.is-night svg:not(.cr) [stroke="#3a2a1a"] { stroke: #f0e2c8; }
+body.is-night svg text[fill="#3c4fb8"] { fill: #a9bbff; }
+body.is-night svg text[fill="#c8452e"] { fill: #ffab96; }
+body.is-night svg text[fill="#2b2f3a"], body.is-night svg text[fill="#5d6170"] { fill: #ecebf8; }
+/* paper things stay paper: sticky notes, cards and buttons on paper keep dark ink */
+body.is-night .cx-note, body.is-night .cx-note--resign, body.is-night .cx-emotes button, body.is-night .cx-promo__row button, body.is-night .cx-photo { color: #2b2f3a; }
+body.is-night .cx-moves .w { color: #f6b26b; }
+body.is-night .cx-field input, body.is-night .cx-join input { background: rgba(255, 255, 255, 0.08); }
+body.is-night .cx-yourmove { color: #ffe08a; text-shadow: 0 0 12px rgba(255, 220, 120, 0.6); }
+body.is-night .cx-btn--solid { color: #2b2f3a; }

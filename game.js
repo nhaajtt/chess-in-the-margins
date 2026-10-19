@@ -1296,6 +1296,72 @@
 
   // once the doodles are drawn, their still pen strokes become pictures (see creatures.js), so each frame
   // repaints only what moves; the pictures are let go when the doodles are drawn again
+
+  /* ---------- the night: a real night sky, not a dimmer ---------- */
+
+  // the ink of the drawings turns to chalk, so the lines show on the dark sky (chess.css does the same for live lines)
+  const NIGHT_INK = {
+    strokes: { "#2b2f3a": "#ecebf8", "#3c4fb8": "#a9bbff", "#4a4d57": "#d8dae6", "#5d6170": "#cdd1e2", "#3a2a1a": "#f0e2c8", "#4a3020": "#f0dcc0" },
+    texts: { "#2b2f3a": "#ecebf8", "#3c4fb8": "#a9bbff", "#c8452e": "#ffab96", "#5d6170": "#cdd1e2" },
+  };
+  // the sky is painted once: deep blue getting lighter towards the horizon, a milky way, and hundreds of stars
+  let skyPainted = false;
+  function paintNightSky() {
+    if (skyPainted) return;
+    skyPainted = true;
+    const W = 1400, H = 1600, cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    if (!g) return;
+    let s = 1907;
+    const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#0a1230"); sky.addColorStop(0.55, "#16245a"); sky.addColorStop(1, "#24336e");
+    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    // the milky way: a faint diagonal band of soft light
+    for (let i = 0; i < 90; i++) {
+      const t = rnd(), x = t * W, y = H * 0.15 + t * H * 0.55 + (rnd() - 0.5) * 220, r = 60 + rnd() * 140;
+      const b = g.createRadialGradient(x, y, 0, x, y, r);
+      b.addColorStop(0, `rgba(180, 190, 255, ${0.025 + rnd() * 0.03})`); b.addColorStop(1, "rgba(180, 190, 255, 0)");
+      g.fillStyle = b; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    for (let i = 0; i < 900; i++) {
+      const x = rnd() * W, y = rnd() * H, r = rnd() < 0.92 ? rnd() * 1.1 + 0.3 : rnd() * 1.6 + 1;
+      g.fillStyle = `rgba(${235 + rnd() * 20}, ${235 + rnd() * 20}, 255, ${0.35 + rnd() * 0.6})`;
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    }
+    try { document.documentElement.style.setProperty("--night-img", `url("${cv.toDataURL("image/jpeg", 0.88)}")`); } catch { /* the plain colour is enough */ }
+  }
+  // a few bright stars twinkle on their own layer, and now and then a star shoots across
+  const twinkles = document.createElement("div");
+  twinkles.className = "cx-sky";
+  twinkles.setAttribute("aria-hidden", "true");
+  document.body.prepend(twinkles);
+  let shooting = 0;
+  function nightLayer(on) {
+    twinkles.hidden = !on;
+    clearTimeout(shooting);
+    if (!on) return;
+    if (!twinkles.childElementCount) {
+      for (let i = 0; i < 46; i++) {
+        const st = document.createElement("i");
+        st.style.left = `${R(0, 100)}%`; st.style.top = `${R(0, 100)}%`;
+        st.style.setProperty("--d", `${R(1.6, 4.2).toFixed(2)}s`); st.style.setProperty("--w", `${R(0, 4).toFixed(2)}s`);
+        st.style.setProperty("--s", `${R(2, 4.5).toFixed(1)}px`);
+        twinkles.append(st);
+      }
+    }
+    if (!anim) return;
+    const shoot = () => {
+      const s = document.createElement("b");
+      s.style.left = `${R(10, 80)}%`; s.style.top = `${R(4, 40)}%`;
+      twinkles.append(s);
+      G.fromTo(s, { x: 0, y: 0, opacity: 0, scaleX: 0.3 }, { x: R(260, 420), y: R(120, 200), opacity: 1, scaleX: 1, duration: 0.9, ease: "power1.in", onComplete: () => G.to(s, { opacity: 0, duration: 0.25, onComplete: () => s.remove() }) });
+      shooting = setTimeout(shoot, R(5000, 13000));
+    };
+    shooting = setTimeout(shoot, R(1500, 5000));
+  }
+
   let decoPics = [], decoGen = 0, decoDrawing = false, beachKit = null, frogKit = null;
   function flattenDeco(after) {
     const gen = ++decoGen;
@@ -1304,7 +1370,7 @@
       decoDrawing = false;
       if (!penBusy) bakePieces();
       const ppu = Math.min(4, Math.max(1.5, (window.devicePixelRatio || 1) * 1.5));
-      const urls = await CR.flatten(deco, ppu);
+      const urls = await CR.flatten(deco, ppu, 24, nightNow ? NIGHT_INK : null);
       if (gen !== decoGen) { urls.forEach((u) => CR.release(u)); return; }
       decoPics.push(...urls);
     });
@@ -1317,7 +1383,9 @@
     beachKit = null;
     frogKit = null;
     nightNow = Boolean(TH.night && TH.night());
+    if (nightNow) paintNightSky();
     document.body.classList.toggle("is-night", nightNow);
+    nightLayer(nightNow);
     decoPics.forEach((u) => CR.release(u));
     decoPics = [];
     decoTweens.forEach((t) => t.kill());
@@ -3867,8 +3935,11 @@
     {
       draw(sc) {
         sc.write("Chess in the margins", 500, 245, 86, [["Chess", "#c8452e"], [" in the margins", "#3c4fb8"]]);
-        sc.write("a little story drawn by Nhat Nguyen", 500, 325, 30, null, "#5d6170");
-        sc.write("một câu chuyện nhỏ vẽ bởi Nhật Nguyễn", 500, 368, 28, null, "#5d6170", true);
+        // the author's name in navy, its shadow in royal gold just behind it
+        sc.write("", 502, 327, 30, [["a little story drawn by ", "rgba(0,0,0,0)"], ["Nhat Nguyen", "#c9a227"]]);
+        sc.write("", 500, 325, 30, [["a little story drawn by ", "#5d6170"], ["Nhat Nguyen", "#14213d"]]);
+        sc.write("", 502, 370, 28, [["một câu chuyện nhỏ vẽ bởi ", "rgba(0,0,0,0)"], ["Nhật Nguyễn", "#c9a227"]], undefined, true);
+        sc.write("", 500, 368, 28, [["một câu chuyện nhỏ vẽ bởi ", "#5d6170"], ["Nhật Nguyễn", "#14213d"]], undefined, true);
         sc.ink((rc) => rc.path("M 300 270 Q 400 284 500 270 T 700 272", { stroke: "#c8452e", strokeWidth: 2.4, roughness: 1.2, seed: 3 }));
         sc.ink(theStar(232, 210, 18, 4), twinkle(232, 210));
         sc.ink(theStar(768, 212, 14, 8), twinkle(768, 212));

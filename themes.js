@@ -683,6 +683,12 @@
     }
     if (x.moon) {
       const [mx, my, r] = x.moon;
+      // moonlight: soft rings behind the moon
+      const halo = svgEl("g", { class: "t-moonglow" });
+      [3.2, 2.4, 1.7].forEach((k, i) => halo.append(rc.circle(mx - r * 0.2, my, r * k * 2, { stroke: "none", fill: `rgba(255, 238, 170, ${0.07 + i * 0.05})`, fillStyle: "solid", roughness: 0.4, seed: 3460 + i })));
+      const moonG = deco.querySelector(".d-moon");
+      if (moonG) moonG.prepend(halo); else deco.append(halo);
+      if (anim) loop(G.to(halo, { scale: 1.08, svgOrigin: `${mx} ${my}`, duration: 2.6, yoyo: true, repeat: -1, ease: "sine.inOut" }));
       const eye = mover("t-moon-eye", (g) => {
         g.append(rc.circle(mx - r * 0.45, my - r * 0.05, r * 0.42, { stroke: "#2b2f3a", strokeWidth: 1.2, fill: "#ffffff", fillStyle: "solid", seed: 3450 }));
         g.append(rc.circle(mx - r * 0.42, my - r * 0.04, r * 0.18, { stroke: "none", fill: "#1f1a2a", fillStyle: "solid", seed: 3451 }));

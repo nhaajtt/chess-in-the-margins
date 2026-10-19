@@ -569,8 +569,17 @@
     for (const c of n.childNodes) if (!still(c, moving)) return false;
     return true;
   }
-  function picture(nodes, ppu) { return inTurn(() => picture1(nodes, ppu)).catch(() => null); }
-  function picture1(nodes, ppu) {
+  function picture(nodes, ppu, recolor) { return inTurn(() => picture1(nodes, ppu, recolor)).catch(() => null); }
+  // recolor: { strokes: { from: to }, texts: { from: to } } — what the page shows in CSS, written into the picture
+  function tint(copy, recolor) {
+    if (!recolor) return;
+    [copy, ...copy.querySelectorAll("*")].forEach((m) => {
+      const s = (m.getAttribute("stroke") || "").toLowerCase();
+      if (recolor.strokes && recolor.strokes[s]) m.setAttribute("stroke", recolor.strokes[s]);
+      if (m.localName === "text") { const f = (m.getAttribute("fill") || "").toLowerCase(); if (recolor.texts && recolor.texts[f]) m.setAttribute("fill", recolor.texts[f]); }
+    });
+  }
+  function picture1(nodes, ppu, recolor) {
     if (!nodes.every((n) => n.isConnected)) return null;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const n of nodes) {
@@ -588,13 +597,14 @@
       if (n.nodeType !== 1) continue;
       const copy = n.cloneNode(true);
       [copy, ...copy.querySelectorAll("[style]")].forEach((m) => m.removeAttribute("style"));
+      tint(copy, recolor);
       body += xs.serializeToString(copy);
     }
     const src = `<svg xmlns="${NS}" viewBox="${x} ${y} ${w} ${h}" width="${W}" height="${H}">${body}</svg>`;
     return render(src, W, H).then((url) => ({ url, x, y, w, h }));
   }
   // returns the picture addresses, so the page can let them go when the drawing is thrown away
-  async function flatten(top, ppu, minMoves = 24) {
+  async function flatten(top, ppu, minMoves = 24, recolor = null) {
     const moving = new Set();
     if (root.gsap) root.gsap.globalTimeline.getChildren(true, true, false).forEach((t) => t.targets().forEach((x) => moving.add(x)));
     const runs = [];
@@ -611,7 +621,7 @@
     // a picture only pays for itself in place of a good handful of pen moves
     const moves = (p) => ((p.getAttribute("d") || "").match(/[a-z]/gi) || []).length;
     const worth = runs.filter((r) => r.reduce((k, n) => k + (n.nodeType !== 1 ? 0 : n.localName === "path" ? moves(n) : [...n.querySelectorAll("path")].reduce((j, q) => j + moves(q), 0)), 0) >= minMoves);
-    const pics = await Promise.all(worth.map((r) => picture(r, ppu)));
+    const pics = await Promise.all(worth.map((r) => picture(r, ppu, recolor)));
     const urls = [];
     worth.forEach((r, i) => {
       const pic = pics[i];
