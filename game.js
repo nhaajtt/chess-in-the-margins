@@ -1818,7 +1818,7 @@
     /* ---------- the beach: the paper is the sand, the sea comes in at the bottom-right corner ---------- */
     {
       const rc = rough.svg(deco);
-      const seaW = narrow ? W * 0.9 : Math.min(640, Math.max(380, W * 0.36)), seaH = narrow ? 230 : Math.min(330, H * 0.38);
+      const seaW = narrow ? W * 0.9 : Math.min(560, Math.max(340, W * 0.3)), seaH = narrow ? 230 : Math.min(270, H * 0.3);
       const sx = W - seaW, sy = H - seaH;
       // the shoreline is a curve from the bottom edge up to the right edge; B(t) walks along it
       const P0 = [sx, H + 4], P1 = [sx + seaW * 0.12, sy + seaH * 0.05], P2 = [W + 4, sy - 6];
@@ -2104,7 +2104,7 @@
       // the margins come last, once the board and every creature are drawn
       drawDecoIn(boardTime + 8 * 0.2 + 1.1);
       ready = boardTime + 8 * 0.2 + 1.2;
-      writeYourMove(ready);
+      if (mode !== "online") writeYourMove(ready);
     } else {
       buildPieces(true);
       leanBoard(cssTilt(), 0.5);
@@ -2300,6 +2300,7 @@
         if (!m || game.played.length !== msg.ply - 1) { await resyncFromServer(); return; }
         await playMove(m);
         net.pending = false;
+        if (!over && game.turn === human) writeYourMove(0.2);
         if (msg.result && !over) finish({ over: true, ...msg.result });
       });
       return;
