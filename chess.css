@@ -74,6 +74,16 @@ button { font: inherit; color: inherit; }
 .cx-piece.is-startled .cx-bang { display: block; }
 .t-word { font: 700 17px/1 var(--hand); fill: #9a5a10; text-anchor: middle; }
 .t-pop { font: 700 18px/1 var(--sketch); fill: #c8452e; }
+.cx-say text { font: 700 17px/1 var(--hand); fill: #2b2f3a; }
+.cx-zz { font: 700 16px/1 var(--hand); fill: #3c4fb8; }
+.cx-guest { position: absolute; left: 0; top: 0; z-index: 2500; pointer-events: none; }
+.cx-guest svg { display: block; overflow: visible; }
+.t-chalk { font: 700 20px/1 var(--hand); fill: #f3eee2; text-anchor: middle; }
+.t-chalk--red { fill: #ff8a7a; font-size: 24px; }
+/* night: the whole page sinks into a deep blue, slowly */
+body.is-night::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 6; background: rgba(70, 92, 200, 0.24); mix-blend-mode: multiply; animation: cx-dusk 4s ease-out; }
+@keyframes cx-dusk { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { body.is-night::after { animation: none; } }
 .d-boo { font: 700 30px/1 var(--sketch); fill: #3c6fc0; }
 .cx-pow__text { font: 700 30px var(--sketch); letter-spacing: 0.02em; }
 .cx-fx { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }

@@ -74,8 +74,26 @@ scuttles along the sand, and a frog catches flies from a lily pad. A rain cloud 
 with every drop. There is also a spider on a thread, a hot-air balloon, a paper aeroplane looping the loop, a snail
 that takes the whole game to cross the page, and a cat asleep at the bottom.
 
-Leave the board alone for a few seconds and a mushroom gets bored, wanders off to the beach to play, and gets the fright
-of its life when a dolphin leaps out of the sea next to it.
+Leave the board alone for a few seconds and the creatures get bored. Each time something different happens:
+
+- a mushroom wanders off to the beach and gets the fright of its life when a dolphin leaps out shouting "boo!"
+- a crab sneaks onto the board, pinches a pony's tail and is kicked into orbit
+- the frog's tongue shoots all the way up to the string of stars, steals one, and burps
+- a pony nods off, snores, and wakes up insisting it was never asleep
+- two pawns settle their differences with rock, paper, scissors (best of one, whatever the loser says)
+- the whole board does the wave, and one creature misses it
+- the king falls asleep standing up and blows a snot bubble until it pops
+- a wizard sneezes so hard its hat takes off
+
+Any touch, key or move calls everyone back to their squares. Add `?scene=crab` (or `beach`, `frog`, `nap`, `rps`, `wave`,
+`snore`, `sneeze`) to the address to see one first.
+
+During a game the creatures have opinions. A creature being taken sometimes gets its last words in ("tell my mum I was
+brave", "not the hat!"). Two captures in a row and the whole team celebrates while the other weeps. A king checked once too
+often breaks into a sweat and gets out a hanky, and a side that resigns has its king wave a little white flag.
+
+At night (seven in the evening to six in the morning, by your own clock) the page turns blue, fireflies come out, the sun
+goes to bed in a nightcap and the moon is wide awake. `?time=night` or `?time=day` shows either.
 
 ### Holidays
 
@@ -91,9 +109,13 @@ in sight: hats go on the pawns, the others get scarves, capes and bows.
 | Mid-Autumn (Trung Thu) | star lanterns on sticks | the full moon with Cuội under his tree, lanterns drifting up, mooncakes |
 | Valentine's Day | heart balloons and pink bows | rising hearts, a flying cupid |
 | April Fools' | fake glasses, nose and moustache for everyone | the sun in disguise too |
+| Women's Day (20/10 and 8/3) | flowers in hand, flowers on the chest | falling petals, a bouquet |
+| Children's Day (1/6) | lollipops and party hats | kites, balloons |
+| Teachers' Day (20/11) | mortarboards and reading glasses | a blackboard where 2 + 2 = 5 has been marked wrong, an apple |
 
 Each one starts a day or two before the holiday and lasts a day or two after. Add `?theme=halloween` (or `christmas`,
-`newyear`, `tet`, `midautumn`, `valentine`, `aprilfools`) to the address to see one on any day.
+`newyear`, `tet`, `midautumn`, `valentine`, `aprilfools`, `womensday`, `childrensday`, `teachersday`, `birthday`) to
+the address to see one on any day.
 
 <table>
 <tr>

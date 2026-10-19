@@ -18,6 +18,8 @@
   const TET = { 2025: "01-29", 2026: "02-17", 2027: "02-06", 2028: "01-26", 2029: "02-13", 2030: "02-03", 2031: "01-23", 2032: "02-11", 2033: "01-31", 2034: "02-19", 2035: "02-08", 2036: "01-28" };
   const MOON = { 2025: "10-06", 2026: "09-25", 2027: "09-15", 2028: "10-03", 2029: "09-22", 2030: "09-12", 2031: "10-01", 2032: "09-19", 2033: "09-08", 2034: "09-27", 2035: "09-16", 2036: "10-04" };
   const day = (y, md) => { const [m, d] = md.split("-").map(Number); return new Date(y, m - 1, d); };
+  // the owner's birthday, as "MM-DD" (null: no birthday theme unless asked for with ?theme=birthday)
+  const BIRTHDAY = null;
   const near = (now, at, before, after) => { const t = (now - at) / 86400000; return t >= -before && t < after + 1; };
 
   const THEMES = {
@@ -28,6 +30,10 @@
     midautumn: { note: "Trung Thu vui vẻ! the moon is out for the lanterns", when: (n, y) => MOON[y] && near(n, day(y, MOON[y]), 2, 2) },
     valentine: { note: "happy Valentine's Day, from both teams", when: (n, y) => near(n, day(y, "02-14"), 2, 2) },
     aprilfools: { note: "nothing is different today. nothing at all.", when: (n, y) => near(n, day(y, "04-01"), 1, 1) },
+    womensday: { note: () => (new Date().getMonth() === 9 ? "Vietnamese Women's Day! the creatures brought flowers" : "happy Women's Day! flowers for everyone"), when: (n, y) => near(n, day(y, "10-20"), 1, 1) || near(n, day(y, "03-08"), 1, 1) },
+    childrensday: { note: "happy Children's Day! sweets for everyone (the crab took two)", when: (n, y) => near(n, day(y, "06-01"), 1, 1) },
+    teachersday: { note: "happy Teachers' Day! the owl is giving a lecture", when: (n, y) => near(n, day(y, "11-20"), 1, 1) },
+    birthday: { note: "happy birthday! the creatures baked a cake. the crab ate a bit of it.", when: (n, y) => Boolean(BIRTHDAY) && near(n, day(y, BIRTHDAY), 0, 0) },
   };
   function pick(now = new Date()) {
     let asked = null;
@@ -38,6 +44,14 @@
     return null;
   }
   const id = pick();
+  function night(now = new Date()) {
+    let asked = null;
+    try { asked = new URLSearchParams(location.search).get("time"); } catch { /* no address */ }
+    if (asked === "night") return true;
+    if (asked === "day") return false;
+    const h = now.getHours();
+    return h >= 19 || h < 6;
+  }
 
   /* ---------- costumes ---------- */
 
@@ -127,6 +141,29 @@
       s.shape(E(x, y, size * 0.3, size * 0.3), "#f6c945", { gap: 1, line: false });
     },
     heart(s, x, y, size, col) { s.shape(heartD(x, y, size), col, { gap: 1.4 }); },
+    flower(s, x, y, size, col) {
+      s.line(`M ${x} ${y} Q ${x + size * 0.4} ${y - size * 1.4} ${x + size * 0.2} ${y - size * 2.6}`, { ink: "#3f8a3a", sw: 2 });
+      s.shape(`M ${x + size * 0.2} ${y - size * 1.2} q ${size * 0.8} ${-size * 0.5} ${size * 0.9} ${size * 0.2} q ${-size * 0.6} ${size * 0.2} ${-size * 0.9} ${-size * 0.2} Z`, "#6fbf5a", { gap: 1.2, sw: 1 });
+      const fx = x + size * 0.2, fy = y - size * 2.9;
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; s.shape(E(fx + Math.cos(a) * size * 0.5, fy + Math.sin(a) * size * 0.5, size * 0.42, size * 0.42), col, { gap: 1.1, sw: 1 }); }
+      s.shape(E(fx, fy, size * 0.28, size * 0.28), "#f6c945", { gap: 1, line: false });
+    },
+    lolly(s, x, y, size) {
+      s.line(`M ${x} ${y} L ${x + size * 0.5} ${y - size * 2.4}`, { ink: "#c8a050", sw: 2 });
+      const lx = x + size * 0.5, ly = y - size * 3.1;
+      s.shape(E(lx, ly, size * 0.85, size * 0.85), "#ef5a7a", { gap: 1.4 });
+      s.line(`M ${lx} ${ly} m -1 0 a 2 2 0 1 1 3 1 a 4 4 0 1 1 -6 -2 a 6 6 0 1 1 9 3`, { ink: "#fffaf0", sw: 1.6 });
+    },
+    mortar(s, cx, top, w) {
+      s.shape(`M ${cx - w * 0.36} ${top + 2} L ${cx - w * 0.32} ${top - w * 0.2} L ${cx + w * 0.32} ${top - w * 0.2} L ${cx + w * 0.36} ${top + 2} Z`, "#2a2230", { gap: 1.8 });
+      s.shape(`M ${cx - w * 0.75} ${top - w * 0.22} L ${cx} ${top - w * 0.46} L ${cx + w * 0.75} ${top - w * 0.22} L ${cx} ${top + w * 0.02} Z`, "#3a2f4a", { gap: 2 });
+      s.line(`M ${cx} ${top - w * 0.24} L ${cx + w * 0.55} ${top - w * 0.16} L ${cx + w * 0.58} ${top + w * 0.25}`, { ink: "#f6c945", sw: 1.8 });
+      s.shape(E(cx + w * 0.58, top + w * 0.3, w * 0.06, w * 0.1), "#f6c945", { gap: 1, sw: 1 });
+    },
+    specs(s, eyes, r) {
+      eyes.forEach(([x, y]) => s.line(E(x, y, r * 1.4, r * 1.3), { sw: 1.4, ink: "#5a3a1a" }));
+      if (eyes.length > 1) s.line(`M ${eyes[0][0] + r * 1.4} ${eyes[0][1]} L ${eyes[1][0] - r * 1.4} ${eyes[1][1]}`, { sw: 1.4, ink: "#5a3a1a" });
+    },
   };
 
   // dress one creature for the holiday; returns the bits that swing on their own
@@ -155,6 +192,11 @@
       wear(c, holder, "groucho", (s) => P.groucho(s, f.eyes, f.r, nose[0], nose[1], f.mouth[1] - (f.beak ? -2 : 1)));
       return swing;
     }
+    if (theme === "teachersday" && kind !== 1) {
+      // everyone but the pawns turns up to class in reading glasses
+      wear(c, c.face.parentNode, "specs", (s) => P.specs(s, f.eyes, f.r));
+      return swing;
+    }
     if (kind === 2) {
       // knights: something on the head, which turns with it
       const hx = head ? head.x + head.width * 0.62 : 34, hy = head ? head.y + 6 : 14;
@@ -165,6 +207,8 @@
       else if (theme === "tet") on("blossom", (s) => P.blossom(s, hx, hy + 2, 7, "#f4a6c0"));
       else if (theme === "midautumn") on("blossom", (s) => P.blossom(s, hx, hy + 2, 7, "#f6c945"));
       else if (theme === "valentine") on("heart", (s) => P.heart(s, hx, hy, 6, "#ef5a7a"));
+      else if (theme === "womensday") on("blossom", (s) => P.blossom(s, hx, hy + 2, 7, "#ef7aa0"));
+      else if (theme === "childrensday" || theme === "birthday") on("party", (s) => P.party(s, hx, hy, 18, "#3fb39a", "#f6c945"));
       return swing;
     }
     if (kind === 1) {
@@ -183,7 +227,13 @@
         const g = wear(c, c.root, "balloon", (s) => P.balloon(s, cx + body.width * 0.45, body.y + body.height * 0.5, 12));
         g.dataset.o = `${cx + body.width * 0.45} ${body.y + body.height * 0.5}`;
         swing.push(g);
-      }
+      } else if (theme === "womensday" || theme === "childrensday") {
+        const hx = cx + body.width * 0.44, hy = body.y + body.height * 0.55;
+        const g = wear(c, c.root, theme === "womensday" ? "flower" : "lolly", (s) => (theme === "womensday" ? P.flower(s, hx, hy, 8, team("#ef5a7a", "#9a8ee8")) : P.lolly(s, hx, hy, 8)));
+        g.dataset.o = `${hx} ${hy}`;
+        swing.push(g);
+      } else if (theme === "teachersday") onHead("mortar", (s) => P.mortar(s, cx, top, hatW));
+      else if (theme === "birthday") onHead("party", (s) => P.party(s, cx, top, hatW, team("#ef5a7a", "#4a8fe0"), "#f6c945"));
       return swing;
     }
     // the rest keep their crowns, mitres and battlements, and dress below them
@@ -193,6 +243,8 @@
     else if (theme === "tet") front(wear(c, c.root, "scarf", (s) => P.scarf(s, cx, neckY - 2, w * 0.9, "#d93a2e", "#f6c945")));
     else if (theme === "midautumn") front(wear(c, c.root, "scarf", (s) => P.scarf(s, cx, neckY - 2, w * 0.9, "#f08a24", "#f6c945")));
     else if (theme === "valentine") front(wear(c, c.root, "bow", (s) => P.bow(s, cx, neckY + 2, w * 0.8, "#ef5a7a")));
+    else if (theme === "womensday") front(wear(c, c.root, "corsage", (s) => P.blossom(s, cx + w * 0.22, neckY + 6, 5, team("#ef5a7a", "#f4a6c0"))));
+    else if (theme === "childrensday" || theme === "birthday") front(wear(c, c.root, "bow", (s) => P.bow(s, cx, neckY + 2, w * 0.8, ["#e8432e", "#4a8fe0", "#3fb39a", "#f6c945"][kind % 4])));
     return swing;
   }
 
@@ -200,6 +252,7 @@
   // x: the drawing helpers of the doodle layer (see drawDeco in game.js)
   function decorate(x) {
     const theme = id;
+    if (night()) nightfall(x);
     if (!theme) return;
     const { deco, W, H, narrow, rc, mover, loop, anim, G, svgEl } = x;
     const pen = { stroke: "#2b2f3a", strokeWidth: 1.6, roughness: 1.2 };
@@ -474,6 +527,93 @@
       stars.forEach(([bx, by], i) => { if (i % 2) return; const h = mover("t-hheart", (g) => g.append(rc.path(heartD(bx + 22, by - 10, 6), { stroke: "#b8324a", strokeWidth: 1, fill: "#ef5a7a", fillStyle: "solid", seed: 2620 + i }))); if (anim) loop(G.to(h, { scale: 1.25, svgOrigin: `${bx + 22} ${by - 10}`, duration: 0.45, yoyo: true, repeat: -1, ease: "sine.inOut", delay: i * 0.1 })); });
     }
 
+    if (theme === "womensday") {
+      rain("t-petals", narrow ? 10 : 22, (i) => { const g = svgEl("g"); g.append(rc.ellipse(0, 0, R(8, 12), R(5, 7), { stroke: "#d0607a", strokeWidth: 0.8, fill: ["#f4a6c0", "#ef7aa0", "#fbd0dc"][i % 3], fillStyle: "solid", seed: 2800 + i })); return g; }, { slow: 11 });
+      if (!narrow) {
+        const bx = rightX, by = H * 0.42;
+        const bq = mover("t-bouquet", (g) => {
+          [[-18, -60, "#ef5a7a"], [0, -74, "#f6c945"], [18, -62, "#9a8ee8"], [-8, -48, "#ef7aa0"], [10, -50, "#e8432e"]].forEach(([dx, dy, col], j) => {
+            g.append(rc.line(bx, by + 10, bx + dx * 0.8, by + dy + 8, { stroke: "#3f8a3a", strokeWidth: 1.6, seed: 2820 + j }));
+            for (let p = 0; p < 5; p++) { const a = (p / 5) * Math.PI * 2; g.append(rc.circle(bx + dx + Math.cos(a) * 6, by + dy + Math.sin(a) * 6, 9, { stroke: "#9a3a5a", strokeWidth: 0.8, fill: col, fillStyle: "solid", seed: 2830 + j * 5 + p })); }
+            g.append(rc.circle(bx + dx, by + dy, 5, { stroke: "none", fill: "#f6c945", fillStyle: "solid", seed: 2860 + j }));
+          });
+          g.append(rc.polygon([[bx - 26, by - 30], [bx + 26, by - 30], [bx + 6, by + 30], [bx - 6, by + 30]], { stroke: "#a0705a", strokeWidth: 1.4, fill: "#f6e2c0", fillStyle: "hachure", hachureGap: 3, seed: 2870 }));
+          g.append(rc.path(`M ${bx - 10} ${by + 4} Q ${bx} ${by + 12} ${bx + 10} ${by + 4} M ${bx} ${by + 8} L ${bx - 8} ${by + 26} M ${bx} ${by + 8} L ${bx + 8} ${by + 26}`, { stroke: "#e8432e", strokeWidth: 2, seed: 2871 }));
+        });
+        if (anim) loop(G.to(bq, { rotation: 3, svgOrigin: `${bx} ${by + 30}`, duration: 1.6, yoyo: true, repeat: -1, ease: "sine.inOut" }));
+      }
+    }
+
+    if (theme === "childrensday" || theme === "birthday") {
+      rain("t-balloons", narrow ? 6 : 12, (i) => { const g = svgEl("g"); g.append(rc.ellipse(0, 0, 22, 28, { stroke: "#5d6170", strokeWidth: 1.1, fill: ["#e8432e", "#4a8fe0", "#3fb39a", "#f6c945", "#ef5a7a"][i % 5], fillStyle: "solid", seed: 2900 + i })); g.append(rc.path("M 0 14 q 4 10 -2 20 q -4 8 2 16", { stroke: "#5d6170", strokeWidth: 1, seed: 2910 + i })); return g; }, { up: true, slow: 13 });
+    }
+    if (theme === "childrensday") {
+      // two kites tug at their strings
+      [[W * 0.2, 150, "#e8432e"], [W * 0.8, 120, "#4a8fe0"]].forEach(([kx, ky, col], i) => {
+        if (narrow && i) return;
+        const kite = mover("t-kite", (g) => {
+          g.append(rc.polygon([[kx, ky - 30], [kx + 22, ky], [kx, ky + 34], [kx - 22, ky]], { stroke: "#2b2f3a", strokeWidth: 1.4, fill: col, fillStyle: "hachure", hachureGap: 2.6, seed: 2920 + i }));
+          g.append(rc.path(`M ${kx} ${ky - 30} L ${kx} ${ky + 34} M ${kx - 22} ${ky} L ${kx + 22} ${ky}`, { stroke: "#2b2f3a", strokeWidth: 1, seed: 2922 + i }));
+          const tail = svgEl("g", { class: "t-ktail" });
+          tail.append(rc.path(`M ${kx} ${ky + 34} q 10 16 -4 30 q -12 14 4 30`, { stroke: "#2b2f3a", strokeWidth: 1.2, seed: 2924 + i }));
+          [[2, 52], [-2, 80]].forEach(([dx, dy], j) => tail.append(rc.path(`M ${kx + dx - 6} ${ky + dy - 4} L ${kx + dx + 6} ${ky + dy + 4} M ${kx + dx + 6} ${ky + dy - 4} L ${kx + dx - 6} ${ky + dy + 4}`, { stroke: "#f6c945", strokeWidth: 2.4, seed: 2926 + j })));
+          g.append(tail);
+          g.append(rc.line(kx, ky + 4, kx + (i ? -120 : 120), H, { stroke: "#8a8f9a", strokeWidth: 0.8, roughness: 0.4, seed: 2928 + i }));
+        });
+        if (anim) {
+          loop(G.to(kite, { rotation: i ? -8 : 8, x: i ? -14 : 14, y: -10, svgOrigin: `${kx} ${ky + 34}`, duration: 2.2, yoyo: true, repeat: -1, ease: "sine.inOut" }));
+          loop(G.to(kite.querySelector(".t-ktail"), { skewX: 14, svgOrigin: `${kx} ${ky + 34}`, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut" }));
+        }
+      });
+    }
+    if (theme === "teachersday" && !narrow) {
+      // the blackboard: someone got their sums wrong, and someone else marked it
+      const bx = rightX - 10, by = H * 0.36;
+      const board = mover("t-chalkboard", (g) => {
+        g.append(rc.rectangle(bx - 62, by - 44, 124, 88, { stroke: "#7a4a1c", strokeWidth: 3, fill: "#2f4a3a", fillStyle: "solid", roughness: 1.2, seed: 3000 }));
+        g.append(rc.line(bx - 40, by + 44, bx - 50, by + 80, { stroke: "#7a4a1c", strokeWidth: 3, seed: 3001 }));
+        g.append(rc.line(bx + 40, by + 44, bx + 50, by + 80, { stroke: "#7a4a1c", strokeWidth: 3, seed: 3002 }));
+        const sum = svgEl("text", { x: bx - 6, y: by - 8, class: "t-chalk" }); sum.textContent = "2 + 2 = 5"; g.append(sum);
+        g.append(rc.line(bx + 14, by - 22, bx + 34, by - 2, { stroke: "#e8432e", strokeWidth: 2.4, seed: 3003 }));
+        const fix = svgEl("text", { x: bx + 40, y: by + 24, class: "t-chalk t-chalk--red" }); fix.textContent = "4"; g.append(fix);
+        const grade = svgEl("text", { x: bx - 34, y: by + 30, class: "t-chalk t-chalk--red" }); grade.textContent = "A+"; g.append(grade);
+      });
+      const apple = mover("t-apple", (g) => {
+        g.append(rc.circle(bx + 52, by + 70, 22, { stroke: "#9a2a1a", strokeWidth: 1.3, fill: "#e8432e", fillStyle: "hachure", hachureGap: 2, seed: 3010 }));
+        g.append(rc.path(`M ${bx + 52} ${by + 60} q 2 -8 8 -10`, { stroke: "#5a3a1a", strokeWidth: 2, seed: 3011 }));
+        g.append(rc.ellipse(bx + 58, by + 56, 10, 5, { stroke: "#2a5a2a", strokeWidth: 1, fill: "#6fbf5a", fillStyle: "solid", seed: 3012 }));
+      });
+      if (anim) {
+        loop(G.to(board.querySelectorAll(".t-chalk--red"), { scale: 1.15, svgOrigin: `${bx} ${by}`, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut" }));
+        loop(G.to(apple, { rotation: 6, svgOrigin: `${bx + 52} ${by + 80}`, duration: 1.2, yoyo: true, repeat: -1, ease: "sine.inOut" }));
+      }
+    }
+    if (theme === "birthday") {
+      const at = x.beach ? x.beach.B(0.55, 34) : [leftX, H * 0.62];
+      const [cx0, cy0] = at;
+      const cake = mover("t-cake", (g) => {
+        g.append(rc.rectangle(cx0 - 34, cy0 - 26, 68, 30, { stroke: "#8a5a3a", strokeWidth: 1.4, fill: "#f6d2c2", fillStyle: "hachure", hachureGap: 2.4, seed: 3020 }));
+        g.append(rc.rectangle(cx0 - 24, cy0 - 48, 48, 22, { stroke: "#8a5a3a", strokeWidth: 1.4, fill: "#fff3c4", fillStyle: "hachure", hachureGap: 2.4, seed: 3021 }));
+        g.append(rc.path(`M ${cx0 - 34} ${cy0 - 22} q 8 8 16 0 q 8 8 16 0 q 8 8 16 0 q 8 8 18 0`, { stroke: "#ef5a7a", strokeWidth: 2.4, seed: 3022 }));
+        const flames = svgEl("g", { class: "t-flames" });
+        [-14, 0, 14].forEach((dx, j) => {
+          g.append(rc.rectangle(cx0 + dx - 2, cy0 - 62, 4, 14, { stroke: "none", fill: ["#4a8fe0", "#ef5a7a", "#3fb39a"][j], fillStyle: "solid", seed: 3023 + j }));
+          flames.append(rc.ellipse(cx0 + dx, cy0 - 67, 6, 10, { stroke: "none", fill: "#f6a020", fillStyle: "solid", seed: 3026 + j }));
+        });
+        g.append(flames);
+        // a crab-sized bite out of the corner
+        g.append(rc.path(`M ${cx0 + 34} ${cy0 - 26} q -8 4 -4 10 q -6 4 4 10`, { stroke: "#8a5a3a", strokeWidth: 1.4, fill: "#f3eee2", fillStyle: "solid", seed: 3029 }));
+      });
+      if (anim) loop(G.to(cake.querySelector(".t-flames"), { scaleY: 0.7, scaleX: 1.2, svgOrigin: `${cx0} ${cy0 - 62}`, duration: 0.12, yoyo: true, repeat: -1, ease: "steps(2)" }));
+      if (!narrow) {
+        const sign = mover("t-banner", (g) => {
+          g.append(rc.rectangle(rightX - 52, H * 0.3, 104, 56, { stroke: "#b8324a", strokeWidth: 1.6, fill: "#ffe0ea", fillStyle: "solid", seed: 3030 }));
+          [["happy", 22], ["birthday!", 44]].forEach(([t, dy]) => { const tx = svgEl("text", { x: rightX, y: H * 0.3 + dy, class: "t-word" }); tx.textContent = t; g.append(tx); });
+        });
+        if (anim) loop(G.to(sign, { rotation: -3, svgOrigin: `${rightX} ${H * 0.3}`, duration: 1.3, yoyo: true, repeat: -1, ease: "sine.inOut" }));
+      }
+    }
+
     if (theme === "aprilfools") {
       // the sun is in disguise too
       if (x.sun) {
@@ -490,5 +630,46 @@
     }
   }
 
-  root.Themes = { id, note: id ? THEMES[id].note : null, list: Object.keys(THEMES), pick, dress, decorate };
+  // at night: fireflies, the sun asleep in a nightcap, the moon wide awake
+  function nightfall(x) {
+    const { deco, W, H, narrow, rc, mover, loop, anim, G, svgEl } = x;
+    if (anim) {
+      const flies = svgEl("g", { class: "t-fireflies" });
+      deco.append(flies);
+      for (let i = 0; i < (narrow ? 8 : 16); i++) {
+        const f = svgEl("g");
+        f.append(rc.circle(0, 0, 14, { stroke: "none", fill: "rgba(255,240,140,0.35)", fillStyle: "solid", seed: 3400 + i }));
+        f.append(rc.circle(0, 0, 5, { stroke: "none", fill: "#fff6a8", fillStyle: "solid", seed: 3420 + i }));
+        flies.append(f);
+        const x0 = R(0, W), y0 = R(H * 0.15, H * 0.95);
+        G.set(f, { x: x0, y: y0 });
+        loop(G.to(f, { x: x0 + R(-80, 80), y: y0 + R(-60, 60), duration: R(3, 6), yoyo: true, repeat: -1, ease: "sine.inOut" }));
+        loop(G.to(f, { opacity: 0.15, duration: R(0.6, 1.4), yoyo: true, repeat: -1, ease: "sine.inOut", delay: R(0, 2) }));
+      }
+    }
+    if (x.sun) {
+      const [sx, sy, r] = x.sun;
+      const cap = mover("t-sleepcap", (g) => {
+        g.append(rc.circle(sx - r * 0.38, sy - r * 0.12, r * 0.5, { stroke: "none", fill: "#f7c933", fillStyle: "solid", seed: 3440 }));
+        g.append(rc.circle(sx + r * 0.38, sy - r * 0.12, r * 0.5, { stroke: "none", fill: "#f7c933", fillStyle: "solid", seed: 3441 }));
+        g.append(rc.path(`M ${sx - r * 0.56} ${sy - r * 0.1} Q ${sx - r * 0.38} ${sy + r * 0.05} ${sx - r * 0.2} ${sy - r * 0.1} M ${sx + r * 0.2} ${sy - r * 0.1} Q ${sx + r * 0.38} ${sy + r * 0.05} ${sx + r * 0.56} ${sy - r * 0.1}`, { stroke: "#5a3a1a", strokeWidth: 1.6, seed: 3442 }));
+        g.append(rc.path(`M ${sx - r * 0.9} ${sy - r * 0.5} Q ${sx} ${sy - r * 1.6} ${sx + r * 1.3} ${sy - r * 1.5} L ${sx + r * 0.9} ${sy - r * 0.5} Z`, { stroke: "#3c4fb8", strokeWidth: 1.4, fill: "#8fa8f0", fillStyle: "hachure", hachureGap: 2.4, seed: 3443 }));
+        g.append(rc.circle(sx + r * 1.32, sy - r * 1.5, r * 0.3, { stroke: "#3c4fb8", strokeWidth: 1, fill: "#ffffff", fillStyle: "solid", seed: 3444 }));
+      });
+      const sun = deco.querySelector(".d-sun");
+      if (sun) sun.append(cap);
+    }
+    if (x.moon) {
+      const [mx, my, r] = x.moon;
+      const eye = mover("t-moon-eye", (g) => {
+        g.append(rc.circle(mx - r * 0.45, my - r * 0.05, r * 0.42, { stroke: "#2b2f3a", strokeWidth: 1.2, fill: "#ffffff", fillStyle: "solid", seed: 3450 }));
+        g.append(rc.circle(mx - r * 0.42, my - r * 0.04, r * 0.18, { stroke: "none", fill: "#1f1a2a", fillStyle: "solid", seed: 3451 }));
+      });
+      const moon = deco.querySelector(".d-moon");
+      if (moon) moon.append(eye);
+    }
+  }
+
+  const note = id ? (typeof THEMES[id].note === "function" ? THEMES[id].note() : THEMES[id].note) : null;
+  root.Themes = { id, note, list: Object.keys(THEMES), pick, night, dress, decorate };
 })(typeof window !== "undefined" ? window : this);
