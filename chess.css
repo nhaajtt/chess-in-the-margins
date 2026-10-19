@@ -144,6 +144,7 @@ button { font: inherit; color: inherit; }
 .cx-intro { background-color: #f3eee2; background-image: var(--paper-img, none); background-size: max(100%, 1400px) auto; }
 .st-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .st-text { font-family: var(--hand); font-weight: 300; stroke-width: 1.2; stroke-dasharray: 2600; stroke-dashoffset: 2600; fill-opacity: 0; paint-order: stroke; }
+.st-pop { font-family: var(--hand); font-weight: 700; }
 .st-vi { font-family: "Patrick Hand", var(--hand); font-weight: 400; }
 .st-svg svg.cr { overflow: visible; width: 120px; height: 120px; }
 .cx-intro__skip { position: absolute; right: 24px; bottom: 24px; z-index: 20; border: 0; background: none; font: 400 20px var(--hand); color: var(--ink-2); text-decoration: underline; cursor: pointer; min-height: 44px; }
@@ -151,6 +152,31 @@ button { font: inherit; color: inherit; }
 
 .cx-foot { padding: 20px clamp(16px, 3vw, 40px) 32px; color: var(--ink-2); font-size: 15px; text-align: center; }
 .cx-foot p { margin: 0; }
+
+/* playing online */
+.cx-online { display: flex; flex-direction: column; gap: 10px; }
+.cx-online[hidden], .cx-online__lobby[hidden], .cx-online__room[hidden], .cx-opts[hidden] { display: none; }
+/* online: the lobby replaces the computer and clock options in the second column */
+.cx-emotes button { min-height: 30px; padding: 0 8px; font-size: 14px; }
+.cx-online__lobby, .cx-online__room { display: flex; flex-direction: column; gap: 10px; }
+.cx-field { display: grid; gap: 2px; font: 700 14px var(--hand); color: var(--ink-2); }
+.cx-field input, .cx-join input { font: 400 19px var(--hand); color: var(--ink); background: rgba(255, 253, 247, 0.7); border: 0; border-bottom: 2px solid var(--ink); padding: 4px 6px; min-height: 40px; }
+.cx-join { display: flex; gap: 8px; margin: 0; }
+.cx-join input { width: 7.5em; text-transform: uppercase; letter-spacing: 0.18em; }
+.cx-btn--small { min-height: 36px; padding: 0 12px; font-size: 15px; }
+.cx-room__code { margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 400 17px var(--hand); color: var(--ink-2); }
+.cx-room__code b { font: 700 30px var(--sketch); letter-spacing: 0.12em; color: var(--pen-red); }
+.cx-room__players { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 17px; }
+.cx-room__players li { display: flex; align-items: center; gap: 8px; }
+.cx-room__players i { width: 10px; height: 10px; border-radius: 50%; background: #c9c3b4; flex: none; }
+.cx-room__players li.is-on i { background: var(--leaf); }
+.cx-room__players .cx-team { font-size: 14px; color: var(--ink-2); }
+.cx-emotes { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.cx-emotes button { min-height: 34px; padding: 0 10px; border: 2px dashed rgba(43, 47, 58, 0.45); border-radius: var(--wobbly); background: #fffdf7; font: 700 15px var(--hand); cursor: pointer; }
+.cx-emotes button:hover { transform: rotate(-3deg) scale(1.06); }
+.cx-room__actions { margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.cx-online__msg { margin: 0; min-height: 1.4em; font-size: 15px; color: var(--pen-red); }
+.cx-say__text { font: 700 24px var(--hand); }
 
 .cx-side__a, .cx-side__b { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 

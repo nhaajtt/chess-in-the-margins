@@ -353,4 +353,4 @@
   }
 
   root.ChessEngine = { Game, think, perft, name, parse, START, P, N, B, R, Q, K, BLACK, VALUE, F_CAPTURE, F_EP, F_KCASTLE, F_QCASTLE, F_PROMO };
-})(typeof window !== "undefined" ? window : this);
+})(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : this);

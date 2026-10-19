@@ -165,14 +165,17 @@
     const vs = strokes("b-v"), hs = strokes("b-h");
     const squares = [...ink.querySelectorAll(".b-sq path")];
     squares.forEach(dash);
+    const washes = squares.filter((p) => (p.getAttribute("fill") || "none") !== "none");
+    G.set(washes, { opacity: 0 });
     const labels = [...ink.querySelectorAll(".cx-labels text")];
     G.set(labels, { opacity: 0 });
     const tl = G.timeline({ delay: at, onComplete: () => { undash([...vs.flat(), ...hs.flat(), ...squares]); } });
     vs.forEach((l, i) => tl.to(l, { strokeDashoffset: 0, duration: 0.32, ease: "power1.inOut" }, i * 0.09));
     hs.forEach((l, i) => tl.to(l, { strokeDashoffset: 0, duration: 0.32, ease: "power1.inOut" }, 0.85 + i * 0.09));
-    tl.to(squares, { strokeDashoffset: 0, duration: 0.5, ease: "none", stagger: { each: 0.9 / Math.max(1, squares.length), from: "random" } }, 1.6);
+    tl.to(washes, { opacity: 1, duration: 0.45, ease: "none", stagger: { each: 0.9 / Math.max(1, washes.length), from: "random" } }, 1.6);
+    tl.to(squares.filter((p) => !washes.includes(p)), { strokeDashoffset: 0, duration: 0.5, ease: "none", stagger: { each: 1.1 / Math.max(1, squares.length), from: "random" } }, 1.7);
     tl.to(labels, { opacity: 1, duration: 0.18, stagger: 0.04 }, 2.0);
-    return 2.7;
+    return 2.9;
   }
   function label(x, y, text, fill) {
     const t = svgEl("text", { x, y, fill, "text-anchor": "middle", class: "cx-label" });
@@ -216,9 +219,10 @@
         // a red ring beats like a heart around anything that can be taken
         if (anim) markTweens.push(G.fromTo(g, { scale: 0.9, svgOrigin: `${c.x} ${c.y + 20}` }, { scale: 1.08, svgOrigin: `${c.x} ${c.y + 20}`, duration: 0.42, yoyo: true, repeat: -1, ease: "power1.inOut", delay: i * 0.05 }));
       } else {
-        // a little orange with a leaf; they pop up nearest first and keep bobbing
+        // a little fruit with a leaf (an orange for orange, a plum for purple); they pop up nearest first and keep bobbing
+        const purple = colorOf(m.piece) === 1;
         const g = boil(marks, (rc, gg, k) => {
-          gg.append(rc.circle(c.x, c.y + 6, 34, { stroke: "#e8902a", strokeWidth: 2.6, roughness: 1.3, fill: "rgba(240,160,60,0.18)", fillStyle: "solid", seed: m.to + k * 13 }));
+          gg.append(rc.circle(c.x, c.y + 6, 34, { stroke: purple ? "#6660c8" : "#e8902a", strokeWidth: 2.6, roughness: 1.3, fill: purple ? "rgba(140,120,220,0.2)" : "rgba(240,160,60,0.18)", fillStyle: "solid", seed: m.to + k * 13 }));
           const leaf = svgEl("g", { class: "cx-leaf" });
           leaf.append(rc.path(`M ${c.x + 3} ${c.y - 11} q 9 -11 18 -6 q -6 9 -18 6`, { fill: "#5aa04a", fillStyle: "solid", stroke: "#3d7a33", strokeWidth: 1.2, roughness: 0.8, seed: 5 + k }));
           gg.append(leaf);
@@ -516,9 +520,17 @@
     }
   }
 
-  function humanTurn() { return !over && !busy && (mode === "friend" || game.turn === human); }
+  function humanTurn() {
+    if (mode === "online") return !over && !busy && net.ready && !net.pending && net.players.length === 2 && game.turn === human;
+    return !over && !busy && (mode === "friend" || game.turn === human);
+  }
 
   function onSquare(sq) {
+    if (mode === "online" && !humanTurn()) {
+      const p = game.get(sq);
+      if (p && human >= 0 && colorOf(p) === human && !over) onlineMsg(net.players.length < 2 ? "Wait for your friend to join." : "Not your turn yet.");
+      return;
+    }
     if (!humanTurn()) return;
     const p = game.get(sq);
     if (selected >= 0) {
@@ -571,6 +583,11 @@
     let m = options[0];
     if (options.length > 1) m = await askPromotion(options);
     if (!m) return;
+    if (mode === "online") {
+      selected = -1; legal = []; drawMarks();
+      if (net.send({ t: "move", from: m.from, to: m.to, promo: m.promo || 0 })) net.pending = true;
+      return;
+    }
     selected = -1; legal = [];
     await playMove(m);
     if (!over && mode === "cpu" && game.turn !== human) computer();
@@ -921,7 +938,12 @@
     const turn = TEAM[game.turn];
     let s;
     if (mode === "cpu") s = game.turn === human ? "Your move." : `The ${turn} team is thinking.`;
-    else s = `The ${turn} team to move.`;
+    else if (mode === "online") {
+      const them = net.players.find((p) => p.color !== (human ? "b" : "w"));
+      if (human < 0) s = `You are watching. The ${turn} team to move.`;
+      else if (net.players.length < 2) s = "Waiting for your friend to join.";
+      else s = game.turn === human ? "Your move." : `Waiting for ${them ? them.name : "your friend"}.`;
+    } else s = `The ${turn} team to move.`;
     if (m) s = `${cap(who(m.promo || m.piece))} went to ${name(m.to)}. ${s}`;
     if (st && st.check) s += " Check!";
     statusEl.textContent = s;
@@ -2028,11 +2050,16 @@
     if (!anim) return;
     const groups = [...deco.children];
     groups.forEach((g, i) => {
-      const paths = [...g.querySelectorAll("path")].map(dash);
+      const all2 = [...g.querySelectorAll("path")];
+      const fills = all2.filter((p) => (p.getAttribute("fill") || "none") !== "none" && (p.getAttribute("stroke") || "none") === "none");
+      const paths = all2.filter((p) => !fills.includes(p)).map(dash);
+      const lines = [...g.querySelectorAll("line")];
       const texts = [...g.querySelectorAll("text")];
-      if (texts.length) G.set(texts, { opacity: 0 });
-      const tl = G.timeline({ delay: at + Math.min(i * 0.06, 2.4), onComplete: () => undash(paths) });
+      G.set([...fills, ...texts, ...lines], { opacity: 0 });
+      const tl = G.timeline({ delay: at + Math.min(i * 0.05, 2.2), onComplete: () => undash(paths) });
       if (paths.length) tl.to(paths, { strokeDashoffset: 0, duration: 0.7, ease: "power1.inOut", stagger: { each: 0.5 / Math.max(1, paths.length) } });
+      if (lines.length) tl.to(lines, { opacity: 1, duration: 0.3 }, 0);
+      if (fills.length) tl.to(fills, { opacity: 1, duration: 0.6, ease: "none", stagger: { each: 0.3 / fills.length } }, paths.length ? "-=0.35" : 0);
       if (texts.length) tl.to(texts, { opacity: 1, duration: 0.3 }, "-=0.2");
     });
   }
@@ -2058,8 +2085,8 @@
   function newGame(first = false) {
     game = new Game();
     over = null; selected = -1; legal = []; lastMove = null; firstCapture = true; busy = false;
-    human = mode === "cpu" && $("play-purple").checked ? 1 : 0;
-    flipped = mode === "cpu" ? human === 1 : flipped;
+    if (mode !== "online") human = mode === "cpu" && $("play-purple").checked ? 1 : 0;
+    flipped = mode === "cpu" || mode === "online" ? human === 1 : flipped;
     spinNow = 0;
     setBoardTransform();
     $("tray-0").replaceChildren(); $("tray-1").replaceChildren();
@@ -2074,7 +2101,8 @@
       buildPieces("draw");
       relayout();
       leanBoard(cssTilt(), 2.4);
-      drawDecoIn(boardTime + 0.6);
+      // the margins come last, once the board and every creature are drawn
+      drawDecoIn(boardTime + 8 * 0.2 + 1.1);
       ready = boardTime + 8 * 0.2 + 1.2;
       writeYourMove(ready);
     } else {
@@ -2088,7 +2116,10 @@
     if (mode === "cpu" && game.turn !== human) setTimeout(computer, ready * 1000);
   }
 
-  $("new").addEventListener("click", () => { if (!busy) newGame(); });
+  $("new").addEventListener("click", () => {
+    if (mode === "online") { if (!net.code) return; if (over) { net.send({ t: "rematch" }); onlineMsg("You asked for a rematch."); } else onlineMsg("Finish or resign this game first."); return; }
+    if (!busy) newGame();
+  });
   const again = $("again");
   if (again) again.addEventListener("click", () => { if (busy || !anim) return; book().then(() => { drawDeco(); newGame(true); }); });
   // flipping turns the whole board round on the table
@@ -2107,6 +2138,7 @@
     busy = false;
   });
   $("undo").addEventListener("click", () => {
+    if (mode === "online") { onlineMsg("No take-backs online."); return; }
     if (busy || !game.played.length) return;
     game.takeBack();
     if (mode === "cpu" && game.turn !== human && game.played.length) game.takeBack();
@@ -2128,14 +2160,18 @@
     }
   }
   $("resign").addEventListener("click", () => {
+    if (mode === "online") { if (!over && human >= 0 && net.players.length === 2) { net.send({ t: "resign" }); if (anim) G.fromTo("#resign", { rotation: 2 }, { rotation: -14, y: 6, duration: 0.6, ease: "bounce.out" }); } return; }
     if (over || busy) return;
     const loser = mode === "cpu" ? human : game.turn;
     if (anim) G.fromTo("#resign", { rotation: 2 }, { rotation: -14, y: 6, duration: 0.6, ease: "bounce.out" });
     finish({ over: true, result: loser ? "1-0" : "0-1", reason: "resigned" });
   });
   document.querySelectorAll('input[name="mode"]').forEach((i) => i.addEventListener("change", () => {
+    if (mode === "online" && i.value !== "online") leaveRoom(false);
     mode = i.value;
     $("cpu-opts").disabled = mode !== "cpu";
+    showOnline();
+    if (mode === "online") { onlineMsg(""); if (!busy) { human = 0; newGame(); } return; }
     if (!busy) newGame();
   }));
   document.querySelectorAll('input[name="level"]').forEach((i) => i.addEventListener("change", () => { level = i.value; }));
@@ -2144,6 +2180,226 @@
 
   let resizeTimer = 0;
   window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!busy) { tiltNow = cssTilt(); setBoardTransform(); } relayout(); drawDeco(); }, 120); });
+
+
+  /* ---------- playing a friend online ----------
+     A room lives on a small Cloudflare service. It keeps the real game and checks every move with this same
+     engine; this page sends moves, emotes and offers, and plays back whatever the room says happened. */
+
+  const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "http://localhost:8787" : "https://chess-rooms.chess-rooms.workers.dev";
+  const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
+  const net = { ws: null, code: null, ready: false, pending: false, players: [], spectators: 0, tries: 0, closing: false, timer: 0, queue: Promise.resolve(), offline: new Set() };
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private window */ } } };
+  const myName = $("my-name");
+  if (myName) myName.value = store.get("chess-name") || "";
+
+  function roomFromUrl() {
+    const m = location.pathname.match(/^\/r\/([A-Za-z0-9]{6})\/?$/);
+    const code = (m ? m[1] : new URLSearchParams(location.search).get("room") || "").toUpperCase();
+    return CODE_RE.test(code) ? code : null;
+  }
+  const roomLink = (code) => (location.hostname === "localhost" ? `${location.origin}/?room=${code}` : `${location.origin}/r/${code}`);
+  function onlineMsg(t) { const m = $("online-msg"); if (m) m.textContent = t; }
+  function showOnline() {
+    const on = mode === "online";
+    $("online").hidden = !on;
+    $("cpu-opts").hidden = on;
+    $("clock-opts").hidden = on;
+    $("lobby").hidden = Boolean(net.code);
+    $("room").hidden = !net.code;
+    $("undo").disabled = on;
+    if (on) { minutes = 0; stopClock(); $("clocks").hidden = true; }
+  }
+  const nameNow = () => { const v = (myName && myName.value.trim()) || "a friend"; store.set("chess-name", v); return v.slice(0, 20); };
+
+  $("room-create").addEventListener("click", async () => {
+    onlineMsg("Opening a room…");
+    try {
+      const r = await fetch(`${API}/rooms`, { method: "POST" });
+      if (!r.ok) throw new Error(String(r.status));
+      const { code } = await r.json();
+      enterRoom(code);
+    } catch { onlineMsg("The rooms service did not answer. Try again in a moment."); }
+  });
+  $("room-join").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = $("room-code").value.trim().toUpperCase();
+    if (!CODE_RE.test(code)) { onlineMsg("A room code is six letters and numbers."); return; }
+    onlineMsg("Looking for the room…");
+    try {
+      const r = await fetch(`${API}/rooms/${code}`);
+      if (r.status === 404) { onlineMsg("There is no room with that code."); return; }
+      if (!r.ok) throw new Error(String(r.status));
+      enterRoom(code);
+    } catch { onlineMsg("The rooms service did not answer. Try again in a moment."); }
+  });
+  $("room-copy").addEventListener("click", async () => {
+    const link = roomLink(net.code);
+    try { await navigator.clipboard.writeText(link); onlineMsg("Link copied. Send it to your friend."); }
+    catch { onlineMsg(link); }
+  });
+  $("room-leave").addEventListener("click", () => leaveRoom(true));
+  $("room-draw").addEventListener("click", () => { if (!over && human >= 0) { net.send({ t: "draw" }); onlineMsg("You offered a draw."); } });
+  $("emotes").addEventListener("click", (e) => { const b = e.target.closest("button[data-e]"); if (b && human >= 0) net.send({ t: "emote", e: b.dataset.e }); });
+
+  function enterRoom(code) {
+    if (mode !== "online") { mode = "online"; const r = document.querySelector('input[name="mode"][value="online"]'); if (r) r.checked = true; $("cpu-opts").disabled = true; }
+    if (net.code && net.code !== code) leaveRoom(false);
+    net.code = code;
+    $("room-code-show").textContent = code;
+    try { history.replaceState(null, "", location.hostname === "localhost" ? `/?room=${code}` : `/r/${code}`); } catch { /* fine */ }
+    showOnline();
+    onlineMsg("");
+    connect();
+  }
+  function leaveRoom(reset) {
+    net.closing = true;
+    clearTimeout(net.timer);
+    if (net.ws) try { net.ws.close(1000, "left"); } catch { /* gone */ }
+    net.ws = null; net.code = null; net.ready = false; net.pending = false; net.players = []; net.offline.clear();
+    try { history.replaceState(null, "", "/"); } catch { /* fine */ }
+    if (reset) { human = 0; showOnline(); newGame(); onlineMsg("You left the room."); }
+  }
+
+  net.send = (msg) => {
+    if (!net.ws || net.ws.readyState !== 1) { onlineMsg("Not connected yet."); return false; }
+    net.ws.send(JSON.stringify(msg));
+    return true;
+  };
+  function connect() {
+    net.closing = false;
+    const code = net.code;
+    const ws = new WebSocket(`${API.replace(/^http/, "ws")}/rooms/${code}/ws`);
+    net.ws = ws;
+    ws.onopen = () => { net.tries = 0; ws.send(JSON.stringify({ t: "hello", token: store.get(`chess-room-${code}`), name: nameNow() })); };
+    ws.onmessage = (e) => { let msg; try { msg = JSON.parse(e.data); } catch { return; } onMessage(msg); };
+    ws.onclose = () => {
+      net.ready = false;
+      if (net.closing || net.code !== code) return;
+      // come back on our own: 1, 2, 4… seconds
+      const wait2 = Math.min(15000, 1000 * 2 ** net.tries++);
+      onlineMsg("Lost the connection. Reconnecting…");
+      net.timer = setTimeout(() => { if (net.code === code) connect(); }, wait2);
+    };
+  }
+
+  function onMessage(msg) {
+    if (msg.t === "welcome") {
+      if (msg.token) store.set(`chess-room-${net.code}`, msg.token);
+      const was = human;
+      human = msg.you === "w" ? 0 : msg.you === "b" ? 1 : -1;
+      net.ready = true;
+      onlineMsg(human < 0 ? "Both seats are taken, so you are watching." : "");
+      if ((human === 1) !== flipped || was !== human) net.queue = net.queue.then(() => { flipped = human === 1; drawBoard(); buildSquares(); relayout(); drawMarks(); statusLine(game.status()); });
+      return;
+    }
+    if (msg.t === "state") { net.queue = net.queue.then(() => applyState(msg)); return; }
+    if (msg.t === "move") {
+      net.queue = net.queue.then(async () => {
+        const m = game.moves().find((x) => x.from === msg.from && x.to === msg.to && (x.promo || 0) === (msg.promo || 0));
+        if (!m || game.played.length !== msg.ply - 1) { await resyncFromServer(); return; }
+        await playMove(m);
+        net.pending = false;
+        if (msg.result && !over) finish({ over: true, ...msg.result });
+      });
+      return;
+    }
+    if (msg.t === "emote") { emote(msg.color === "w" ? 0 : 1, msg.e); return; }
+    if (msg.t === "error") { net.pending = false; onlineMsg(msg.msg); }
+  }
+  async function resyncFromServer() {
+    try { const r = await fetch(`${API}/rooms/${net.code}`); void r; } catch { /* the next state will fix it */ }
+    if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify({ t: "hello", token: store.get(`chess-room-${net.code}`), name: nameNow() }));
+  }
+
+  // bring the page in line with the room: the same moves, the same result, who is here
+  async function applyState(st) {
+    net.players = st.players;
+    net.spectators = st.spectators;
+    renderPlayers(st);
+    const same = st.moves.length === game.played.length && st.moves.every((mv, i) => { const p = game.played[i].move; return p.from === mv.from && p.to === mv.to && (p.promo || 0) === (mv.promo || 0); });
+    if (!same) {
+      if (st.moves.length === 0) { over = null; newGame(); note("a fresh page: rematch!"); }
+      else rebuildFrom(st.moves);
+    }
+    net.pending = false;
+    if (st.result && !over) finish({ over: true, ...st.result });
+    if (!st.result && st.drawOffer && st.drawOffer !== (human ? "b" : "w") && human >= 0) onlineMsg("Your friend offers a draw. Press “Offer a draw” to accept.");
+    if (st.result && st.rematch && st.rematch.length === 1 && st.rematch[0] !== (human ? "b" : "w") && human >= 0) onlineMsg("Your friend wants a rematch. Press “New game” to accept.");
+    // a player who drops out: their creatures doze off until they come back
+    for (const p of st.players) {
+      const side = p.color === "w" ? 0 : 1;
+      const was = net.offline.has(side);
+      if (!p.online && !was) { net.offline.add(side); doze(side, true); if (side !== human && human >= 0) note(`${p.name}'s creatures doze off`); }
+      if (p.online && was) { net.offline.delete(side); doze(side, false); if (side !== human && human >= 0) note(`${p.name} is back!`); }
+    }
+    statusLine(game.status());
+  }
+  function rebuildFrom(moves) {
+    game = new Game();
+    for (const mv of moves) {
+      const m = game.moves().find((x) => x.from === mv.from && x.to === mv.to && (x.promo || 0) === (mv.promo || 0));
+      if (!m) break;
+      game.play(m);
+    }
+    over = null; selected = -1; legal = [];
+    lastMove = game.played.length ? game.played[game.played.length - 1].move : null;
+    rebuildTrays(); buildPieces(); drawMarks(); writeMoves(); labelSquares(); whale();
+    const s2 = game.status();
+    if (s2.over) finish(s2);
+  }
+  function renderPlayers(st) {
+    const ul = $("room-players");
+    ul.replaceChildren();
+    for (const color of ["w", "b"]) {
+      const p = st.players.find((x) => x.color === color);
+      const li = document.createElement("li");
+      if (p && p.online) li.className = "is-on";
+      const dot = document.createElement("i");
+      const nm = document.createElement("span");
+      nm.textContent = p ? `${p.name}${(color === "w" ? 0 : 1) === human ? " (you)" : ""}` : "waiting…";
+      const team = document.createElement("span");
+      team.className = "cx-team";
+      team.textContent = color === "w" ? "orange" : "purple";
+      li.append(dot, nm, team);
+      ul.append(li);
+    }
+    if (st.spectators) { const li = document.createElement("li"); li.textContent = `${st.spectators} watching`; li.className = "cx-team"; ul.append(li); }
+    $("room-draw").disabled = Boolean(st.result) || human < 0;
+  }
+  function doze(side, asleep) {
+    for (const [, el] of els) {
+      if (colorOf(el.__p) !== side) continue;
+      if (asleep) { CR.setFace(el.__c, "closed", el.__c.spec.face.beak ? "none" : "wavy"); el.__c.state = "asleep"; if (el.__live) el.__live.timeScale(0.4); }
+      else { CR.restFace(el.__c); if (el.__live) el.__live.timeScale(1); }
+    }
+  }
+  // an emote: that side's king pipes up with a word and a little hop
+  const SAY = { wave: "hi!", laugh: "ha ha!", grr: "grr!", yawn: "yaaawn", love: "\u2665", shock: "!!" };
+  function emote(side, e) {
+    const k = [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === side);
+    if (!k) return;
+    const [sq, el] = k, s2 = spot(sq), c = el.__c;
+    const face = { wave: "happy", laugh: "happy", grr: "hurt", yawn: "closed", love: "happy", shock: "scared" }[e] || "happy";
+    if (c.state !== "asleep") { CR.setFace(c, face, c.spec.face.beak ? "open" : face === "hurt" ? "grin" : "open"); setTimeout(() => { if (c.state === face) CR.restFace(c); }, 1600); }
+    if (anim) {
+      G.timeline().to(el.__act, { y: -16, duration: 0.15, ease: "power2.out" }).to(el.__act, { y: 0, duration: 0.4, ease: "bounce.out" });
+      if (e === "wave" && !c.spec.wings) { const a = c.arms[c.arms.length - 1]; if (a) G.to(a, { rotation: -130, svgOrigin: a.dataset.o, duration: 0.18, yoyo: true, repeat: 5 }); }
+      const g = svgEl("g", {});
+      const rc2 = rough.svg(fx);
+      const w = 38 + SAY[e].length * 9;
+      g.append(rc2.path(`M ${-w / 2} -16 Q ${-w / 2} -34 0 -34 Q ${w / 2} -34 ${w / 2} -16 Q ${w / 2} 0 6 0 L -4 14 L -6 0 Q ${-w / 2} 0 ${-w / 2} -16 Z`, { stroke: side ? "#3c4fb8" : "#c8452e", strokeWidth: 2, fill: "#fffdf6", fillStyle: "solid", roughness: 1.2, seed: 7 }));
+      const t = svgEl("text", { x: 0, y: -10, "text-anchor": "middle", class: "cx-say__text", fill: e === "love" ? "#e2516a" : side ? "#3c4fb8" : "#c8452e" });
+      t.textContent = SAY[e];
+      g.append(t);
+      fx.append(g);
+      G.timeline({ onComplete: () => g.remove() })
+        .fromTo(g, { x: s2.x, y: s2.y - s2.w * 1.05, scale: 0, transformOrigin: "50% 100%" }, { scale: 1, duration: 0.35, ease: "back.out(3)" })
+        .to(g, { y: "-=8", duration: 1.2, ease: "sine.inOut" })
+        .to(g, { opacity: 0, scale: 0.6, duration: 0.3 });
+    }
+  }
+  showOnline();
 
   /* ---------- the opening, once per visitor ---------- */
 
@@ -2158,23 +2414,39 @@
   // the opening is a short story told in pen. Each scene is written and drawn on the page,
   // then an eraser rubs it out from left to right and the next scene is drawn in its place.
   const storyLives = [];
+  // the star of the story: coloured in orange crayon, outlined in purple ink. That is the whole quarrel.
+  const theStar = (cx, cy, R2, seed = 21) => (rc) => {
+    const g = svgEl("g", { class: "st-star" });
+    g.append(rc.polygon(starPts(cx, cy, R2, R2 * 0.44), { stroke: "none", fill: "#f39a2e", fillStyle: "hachure", hachureGap: 3.2, fillWeight: 2.4, hachureAngle: -35, roughness: 1.4, seed }));
+    g.append(rc.polygon(starPts(cx, cy, R2, R2 * 0.44), { stroke: "#6660c8", strokeWidth: Math.max(2.4, R2 / 22), roughness: 1.2, seed: seed + 1 }));
+    g.append(rc.circle(cx - R2 * 0.14, cy - R2 * 0.06, R2 * 0.09, { stroke: "none", fill: "#2b2f3a", fillStyle: "solid", seed: seed + 2 }));
+    g.append(rc.circle(cx + R2 * 0.14, cy - R2 * 0.06, R2 * 0.09, { stroke: "none", fill: "#2b2f3a", fillStyle: "solid", seed: seed + 3 }));
+    g.append(rc.arc(cx, cy + R2 * 0.07, R2 * 0.22, R2 * 0.14, 0.3, Math.PI - 0.3, false, { stroke: "#2b2f3a", strokeWidth: 2, seed: seed + 4 }));
+    return g;
+  };
+  const twinkle = (cx, cy) => (el) => {
+    storyLives.push({ kill: G.to(el, { rotation: 8, svgOrigin: `${cx} ${cy}`, duration: 0.9, yoyo: true, repeat: -1, ease: "sine.inOut" }).kill });
+    storyLives.push({ kill: G.to(el, { scale: 1.08, svgOrigin: `${cx} ${cy}`, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut" }).kill });
+  };
+  const hop = (c, h = 18, times = 3, d = 0.18) => G.timeline().to(c.wrap, { y: `-=${h}`, duration: d, yoyo: true, repeat: times * 2 - 1, ease: "power2.out" });
+  const waveArm = (c, n = 5) => { const a2 = c.arms[c.arms.length - 1]; if (a2 && !c.spec.wings) G.to(a2, { rotation: -130, svgOrigin: a2.dataset.o, duration: 0.2, yoyo: true, repeat: n }); };
   const SCENES = [
     {
-      en: null, vi: null,
       draw(sc) {
         sc.write("Chess in the margins", 500, 245, 86, [["Chess", "#c8452e"], [" in the margins", "#3c4fb8"]]);
         sc.write("a little story drawn by Nhat Nguyen", 500, 325, 30, null, "#5d6170");
         sc.write("một câu chuyện nhỏ vẽ bởi Nhật Nguyễn", 500, 368, 28, null, "#5d6170", true);
         sc.ink((rc) => rc.path("M 300 270 Q 400 284 500 270 T 700 272", { stroke: "#c8452e", strokeWidth: 2.4, roughness: 1.2, seed: 3 }));
-        sc.ink((rc) => rc.polygon(starPts(232, 210, 14, 6), { stroke: "#b57a10", strokeWidth: 1.4, fill: "#f7c933", fillStyle: "solid", seed: 4 }));
-        sc.ink((rc) => rc.polygon(starPts(768, 212, 11, 5), { stroke: "#b57a10", strokeWidth: 1.4, fill: "#f7c933", fillStyle: "solid", seed: 5 }));
-        sc.creature(6, 120, 400, 120, "happy");
-        sc.creature(14, 760, 400, 120, "happy");
+        sc.ink(theStar(232, 210, 18, 4), twinkle(232, 210));
+        sc.ink(theStar(768, 212, 14, 8), twinkle(768, 212));
+        sc.creature(6, 120, 400, 120, "happy", false, (c) => waveArm(c));
+        sc.creature(14, 760, 400, 120, "happy", false, (c) => waveArm(c));
       },
     },
     {
       en: "Once upon a time, one notebook page had two neighbours.",
       vi: "Ngày xửa ngày xưa, trên một trang vở có hai nhà hàng xóm.",
+      hold: 0.8,
       draw(sc) {
         sc.ink((rc) => rc.line(500, 150, 502, 570, { stroke: "#e2483d", strokeWidth: 2.4, roughness: 1, seed: 11 }));
         sc.write("the Orange Meadow", 250, 190, 30, null, "#c8452e");
@@ -2184,52 +2456,160 @@
         sc.ink((rc) => { let d = ""; for (let i = 0; i < 14; i++) { const x = 40 + i * 32; d += `M ${x} 560 l -4 -14 M ${x + 5} 560 l 0 -18 M ${x + 10} 560 l 4 -12 `; } return rc.path(d, { stroke: "#5aa04a", strokeWidth: 1.8, roughness: 1.3, seed: 12 }); });
         sc.ink((rc) => rc.path("M 880 560 L 878 470 Q 878 452 896 452 L 944 452 Q 962 452 962 470 L 960 560 Z", { stroke: "#2b2f3a", strokeWidth: 1.8, fill: "#6660c8", fillStyle: "hachure", hachureGap: 4, roughness: 1.2, seed: 13 }));
         sc.ink((rc) => rc.rectangle(902, 430, 36, 22, { stroke: "#2b2f3a", strokeWidth: 1.6, fill: "#c8955a", fillStyle: "solid", roughness: 1, seed: 14 }));
-        sc.creature(6, 60, 300, 140);
-        sc.creature(1, 210, 390, 110);
+        sc.creature(6, 60, 300, 140, null, false, (c) => waveArm(c, 3));
+        sc.creature(1, 210, 390, 110, null, false, (c) => hop(c, 14, 2));
         sc.creature(2, 320, 360, 140);
-        sc.creature(14, 540, 300, 140);
-        sc.creature(9, 690, 390, 110);
+        sc.creature(14, 540, 300, 140, null, false, (c) => waveArm(c, 3));
+        sc.creature(9, 690, 390, 110, null, false, (c) => hop(c, 14, 2));
         sc.creature(10, 760, 360, 140, null, true);
+        sc.pop("good morning!", 130, 290, 24, "#c8452e", 2.4, -4);
+        sc.pop("chào buổi sáng!", 610, 290, 24, "#3c4fb8", 2.8, 4);
       },
     },
     {
-      en: "One day, someone drew a single golden star, right in the middle.",
-      vi: "Một hôm, ai đó vẽ một ngôi sao vàng duy nhất, ngay giữa trang.",
+      en: "They got along fine. Mostly. The mushrooms and the blobs even played tag.",
+      vi: "Họ sống khá hoà thuận. Phần lớn là vậy. Nấm và ma blob còn chơi đuổi bắt.",
+      hold: 1.4,
       draw(sc) {
-        sc.ink((rc) => rc.polygon(starPts(500, 340, 92, 40), { stroke: "#b57a10", strokeWidth: 2.4, fill: "#f7c933", fillStyle: "hachure", hachureGap: 3, fillWeight: 2, roughness: 1.3, seed: 21 }));
-        sc.ink((rc) => rc.path("M 380 230 l -16 -16 M 620 230 l 16 -16 M 370 400 l -20 6 M 630 400 l 20 6 M 500 220 l 0 -24", { stroke: "#e0a21a", strokeWidth: 2.4, roughness: 1, seed: 22 }));
-        sc.creature(6, 90, 330, 150, "scared", false, (c) => G.to(c.pupils, { x: 2, duration: 0.3 }));
-        sc.creature(14, 760, 330, 150, "scared", false, (c) => G.to(c.pupils, { x: -2, duration: 0.3 }));
-        sc.write("!", 170, 320, 60, null, "#c8452e");
-        sc.write("!", 840, 320, 60, null, "#3c4fb8");
+        sc.ink((rc) => rc.line(500, 150, 502, 570, { stroke: "#e2483d", strokeWidth: 2.4, roughness: 1, seed: 15 }));
+        sc.creature(1, 140, 410, 110, "happy", false, (c) => G.timeline({ repeat: 1, yoyo: true }).to(c.wrap, { x: "+=520", duration: 2.2, ease: "sine.inOut" }));
+        sc.creature(9, 300, 410, 110, "scared", false, (c) => G.timeline({ repeat: 1, yoyo: true }).to(c.wrap, { x: "+=520", duration: 2.2, ease: "sine.inOut" }));
+        sc.pop("tag!", 500, 380, 40, "#c8452e", 3.2, -8);
+        sc.pop("không công bằng!", 500, 430, 26, "#3c4fb8", 4.2, 5);
+        sc.creature(3, 760, 230, 100, "happy");
+        sc.creature(11, 860, 230, 100, "happy");
       },
     },
     {
-      en: "Both kings wanted it. “It's coloured in orange!” “But the outline is purple ink!”",
-      vi: "Hai vị vua đều muốn có nó. “Nó tô màu cam mà!” “Nhưng nét viền là mực tím!”",
+      en: "Then one rainy afternoon, someone doodled a star right on the red line.",
+      vi: "Rồi một chiều mưa, ai đó vẽ nguệch ngoạc một ngôi sao ngay trên đường kẻ đỏ.",
+      hold: 0.8,
       draw(sc) {
-        sc.creature(6, 120, 300, 180, "hurt", false, (c) => G.to(c.svg, { x: "+=6", duration: 0.08, yoyo: true, repeat: 15 }));
-        sc.creature(14, 700, 300, 180, "hurt", false, (c) => G.to(c.svg, { x: "-=6", duration: 0.08, yoyo: true, repeat: 15 }));
-        sc.ink((rc) => rc.path("M 270 250 Q 270 200 340 200 L 430 200 Q 470 200 470 240 Q 470 280 420 280 L 340 280 L 300 310 L 312 278 Q 270 274 270 250 Z", { stroke: "#c8452e", strokeWidth: 2, fill: "#fffdf6", fillStyle: "solid", roughness: 1.2, seed: 31 }));
-        sc.ink((rc) => rc.path("M 730 250 Q 730 200 660 200 L 570 200 Q 530 200 530 240 Q 530 280 580 280 L 660 280 L 700 310 L 688 278 Q 730 274 730 250 Z", { stroke: "#3c4fb8", strokeWidth: 2, fill: "#fffdf6", fillStyle: "solid", roughness: 1.2, seed: 32 }));
-        sc.write("MINE!", 370, 236, 34, null, "#c8452e");
-        sc.write("của ta!", 370, 266, 22, null, "#c8452e", true);
-        sc.write("MINE!", 630, 236, 34, null, "#3c4fb8");
-        sc.write("của ta!", 630, 266, 22, null, "#3c4fb8", true);
-        sc.ink((rc) => rc.polygon(starPts(500, 450, 40, 17), { stroke: "#b57a10", strokeWidth: 2, fill: "#f7c933", fillStyle: "solid", roughness: 1.2, seed: 33 }));
+        sc.ink((rc) => rc.line(500, 150, 502, 570, { stroke: "#e2483d", strokeWidth: 2.4, roughness: 1, seed: 16 }));
+        sc.ink((rc) => { let d = ""; for (let i = 0; i < 26; i++) { const x = 40 + (i * 37) % 920, y = 150 + ((i * 53) % 80); d += `M ${x} ${y} l -6 16 `; } return rc.path(d, { stroke: "#8ec0f4", strokeWidth: 1.6, roughness: 0.8, seed: 17 }); });
+        sc.ink((rc) => rc.path("M 420 470 C 450 300 560 300 580 420", { stroke: "#5d6170", strokeWidth: 1.6, strokeLineDash: [6, 8], roughness: 1, seed: 18 }));
+        sc.ink(theStar(500, 360, 92, 21), twinkle(500, 360));
+        sc.ink((rc) => rc.path("M 380 250 l -16 -16 M 620 250 l 16 -16 M 370 400 l -20 6 M 630 400 l 20 6 M 500 240 l 0 -24", { stroke: "#e0a21a", strokeWidth: 2.4, roughness: 1, seed: 22 }));
+        sc.creature(6, 90, 330, 150, "scared", false, (c) => G.to(c.pupils, { x: 2.4, duration: 0.3 }));
+        sc.creature(14, 760, 330, 150, "scared", false, (c) => G.to(c.pupils, { x: -2.4, duration: 0.3 }));
+        sc.pop("!", 175, 320, 64, "#c8452e", 2.4);
+        sc.pop("!", 845, 320, 64, "#3c4fb8", 2.5);
+        sc.pop("ooh, shiny", 500, 540, 26, "#5d6170", 3.2);
+      },
+    },
+    {
+      en: "“It's coloured in ORANGE crayon,” said the owl king. “So it's ours!”",
+      vi: "“Nó được tô bằng sáp CAM,” vua Cú nói. “Vậy nó là của bọn ta!”",
+      hold: 0.6,
+      draw(sc) {
+        sc.ink(theStar(560, 380, 80, 31), (el) => G.fromTo(el.firstChild, { opacity: 0.4 }, { opacity: 1, duration: 0.3, yoyo: true, repeat: 5 }));
+        sc.ink((rc) => rc.path("M 330 330 Q 400 300 470 350", { stroke: "#c8452e", strokeWidth: 2.4, roughness: 1, seed: 33 }));
+        sc.ink((rc) => rc.path("M 456 336 L 472 352 L 450 356", { stroke: "#c8452e", strokeWidth: 2.4, roughness: 1, seed: 34 }));
+        sc.creature(6, 140, 300, 190, "happy", false, (c) => { hop(c, 22, 2); const a2 = c.arms[1]; if (a2) G.to(a2, { rotation: -80, svgOrigin: a2.dataset.o, duration: 0.3 }); });
+        sc.creature(1, 40, 440, 90, "happy", false, (c) => hop(c, 12, 4, 0.15));
+        sc.creature(2, 330, 440, 110, "happy", false, (c) => hop(c, 12, 4, 0.16));
+        sc.pop("ORANGE!", 560, 520, 42, "#c8452e", 2.6, -5);
+        sc.pop("CAM!", 700, 260, 34, "#c8452e", 3.0, 6);
+      },
+    },
+    {
+      en: "“But the OUTLINE is purple ink,” said the penguin king. “So it's ours!”",
+      vi: "“Nhưng NÉT VIỀN là mực tím,” vua Chim Cánh Cụt đáp. “Vậy nó là của bọn ta!”",
+      hold: 0.6,
+      draw(sc) {
+        sc.ink(theStar(440, 380, 80, 41), (el) => G.fromTo(el.children[1], { opacity: 0.2 }, { opacity: 1, duration: 0.3, yoyo: true, repeat: 5 }));
+        sc.ink((rc) => rc.path("M 670 330 Q 600 300 530 350", { stroke: "#3c4fb8", strokeWidth: 2.4, roughness: 1, seed: 43 }));
+        sc.ink((rc) => rc.path("M 544 336 L 528 352 L 550 356", { stroke: "#3c4fb8", strokeWidth: 2.4, roughness: 1, seed: 44 }));
+        sc.creature(14, 670, 300, 190, "happy", false, (c) => { hop(c, 22, 2); const a2 = c.arms[0]; if (a2) G.to(a2, { rotation: 80, svgOrigin: a2.dataset.o, duration: 0.3 }); });
+        sc.creature(9, 870, 440, 90, "happy", false, (c) => hop(c, 12, 4, 0.15));
+        sc.creature(10, 560, 440, 110, "happy", true, (c) => hop(c, 12, 4, 0.16));
+        sc.pop("PURPLE!", 440, 520, 42, "#3c4fb8", 2.6, 5);
+        sc.pop("TÍM!", 300, 260, 34, "#3c4fb8", 3.0, -6);
+      },
+    },
+    {
+      en: "So they pulled. And pulled. The star stretched like chewing gum.",
+      vi: "Thế là họ kéo. Kéo mãi. Ngôi sao dãn ra như kẹo cao su.",
+      hold: 2.2,
+      draw(sc) {
+        const rope = sc.ink((rc) => rc.path("M 260 390 Q 500 410 740 390", { stroke: "#7a5a2a", strokeWidth: 3, roughness: 1.4, seed: 51 }));
+        sc.ink(theStar(500, 380, 70, 52), (el) => storyLives.push({ kill: G.to(el, { scaleX: 1.45, scaleY: 0.8, svgOrigin: "500 380", duration: 0.35, yoyo: true, repeat: -1, ease: "sine.inOut" }).kill }));
+        void rope;
+        sc.creature(6, 120, 300, 170, "hurt", false, (c) => storyLives.push({ kill: G.to(c.wrap, { x: "-=18", rotation: -8, svgOrigin: "200 470", duration: 0.35, yoyo: true, repeat: -1, ease: "sine.inOut" }).kill }));
+        sc.creature(14, 710, 300, 170, "hurt", false, (c) => storyLives.push({ kill: G.to(c.wrap, { x: "+=18", duration: 0.35, yoyo: true, repeat: -1, ease: "sine.inOut" }).kill }));
+        sc.creature(1, 20, 420, 90, "hurt", false, (c) => storyLives.push({ kill: G.to(c.wrap, { x: "-=10", duration: 0.35, yoyo: true, repeat: -1, ease: "sine.inOut", delay: 0.1 }).kill }));
+        sc.creature(9, 890, 420, 90, "hurt", false, (c) => storyLives.push({ kill: G.to(c.wrap, { x: "+=10", duration: 0.35, yoyo: true, repeat: -1, ease: "sine.inOut", delay: 0.1 }).kill }));
+        sc.pop("hngggh!", 230, 270, 30, "#c8452e", 2.4, -6);
+        sc.pop("ugh!!", 790, 270, 30, "#3c4fb8", 2.8, 6);
+        sc.pop("boing", 500, 300, 28, "#5d6170", 4.0, -3);
+      },
+    },
+    {
+      en: "The pony tried sitting on it. The blob tried swallowing it. Ptui.",
+      vi: "Chú ngựa thử ngồi lên nó. Ma blob thử nuốt chửng nó. Phụt.",
+      hold: 2.4,
+      draw(sc) {
+        const star = sc.ink(theStar(500, 430, 60, 61), (el) => {
+          G.timeline({ delay: 1.6 })
+            .to(el, { scale: 0.2, svgOrigin: "500 430", duration: 0.2 })
+            .to(el, { opacity: 0, duration: 0.05 })
+            .to(el, { opacity: 1, scale: 1, x: 40, y: -120, rotation: 400, svgOrigin: "500 430", duration: 0.6, ease: "power2.out", delay: 0.6 })
+            .to(el, { y: 0, x: 0, rotation: 720, svgOrigin: "500 430", duration: 0.6, ease: "bounce.out" });
+        });
+        void star;
+        sc.creature(2, 380, 230, 150, "happy", false, (c) => G.timeline().to(c.wrap, { y: "+=110", x: "+=40", duration: 0.4, ease: "power2.in" }).to(c.wrap, { y: "-=150", x: "-=120", rotation: -40, duration: 0.5, ease: "power2.out" }).to(c.wrap, { y: "+=40", rotation: 0, duration: 0.4, ease: "bounce.out" }).call(() => CR.setFace(c, "dizzy", "wavy")));
+        sc.creature(9, 640, 380, 120, "happy", true, (c) => G.timeline({ delay: 1.2 }).to(c.wrap, { x: "-=110", duration: 0.35, ease: "power2.in" }).to(c.root, { scale: 1.6, svgOrigin: "50 94", duration: 0.25 }).call(() => CR.setFace(c, "hurt", "open")).to(c.root, { scale: 1, svgOrigin: "50 94", duration: 0.25, delay: 0.5 }).to(c.wrap, { x: "+=110", duration: 0.5, ease: "power2.out" }));
+        sc.pop("boing!", 420, 330, 34, "#c8452e", 2.6, -8);
+        sc.pop("gulp…", 560, 360, 28, "#3c4fb8", 3.4, 4);
+        sc.pop("PTUI!", 590, 300, 44, "#3c4fb8", 4.2, -6);
+      },
+    },
+    {
+      en: "Then the snail, who had been crossing the page for three days, spoke up.",
+      vi: "Rồi chú ốc sên, đã bò ngang trang giấy suốt ba ngày, lên tiếng.",
+      hold: 3.0,
+      draw(sc) {
+        const sn = sc.ink((rc) => {
+          const g = svgEl("g", {});
+          g.append(rc.path("M 120 470 L 200 470 Q 218 460 210 446 L 218 424 M 210 446 L 200 424", { stroke: "#3c4fb8", strokeWidth: 2.4, roughness: 1, seed: 71 }));
+          g.append(rc.circle(140, 446, 56, { stroke: "#b4561d", strokeWidth: 2.4, fill: "#f0c08a", fillStyle: "hachure", hachureGap: 4, roughness: 1, seed: 72 }));
+          g.append(rc.path("M 140 446 m -12 0 a 12 12 0 1 1 24 0 a 8 8 0 1 1 -16 0", { stroke: "#b4561d", strokeWidth: 2, seed: 73 }));
+          g.append(rc.circle(218, 422, 6, { stroke: "none", fill: "#2b2f3a", fillStyle: "solid", seed: 74 }));
+          return g;
+        }, (el) => storyLives.push({ kill: G.to(el, { x: 260, duration: 9, ease: "none" }).kill }));
+        void sn;
+        sc.ink((rc) => rc.path("M 520 250 Q 520 190 640 190 L 820 190 Q 900 190 900 250 Q 900 310 820 310 L 580 310 L 500 360 L 530 306 Q 520 296 520 250 Z", { stroke: "#2b2f3a", strokeWidth: 2, fill: "#fffdf6", fillStyle: "solid", roughness: 1.2, seed: 75 }));
+        sc.pop("“…why not play for it?”", 710, 245, 30, "#2b2f3a", 2.4);
+        sc.pop("“…sao không đánh cờ mà phân xử?”", 710, 285, 22, "#5d6170", 3.0);
+        sc.creature(6, 60, 220, 110, "scared", false, (c) => G.to(c.pupils, { x: 2, y: 1.5, duration: 0.3 }));
+        sc.creature(14, 230, 220, 110, "scared", false, (c) => G.to(c.pupils, { x: 2, y: 1.5, duration: 0.3 }));
       },
     },
     {
       en: "So they settled it the old way: sixty-four squares, one move at a time.",
       vi: "Thế là họ phân xử theo cách xưa: sáu mươi tư ô cờ, mỗi lượt một nước.",
+      hold: 0.6,
       draw(sc) {
-        sc.ink((rc) => { let d = ""; for (let i = 0; i <= 4; i++) { d += `M ${380 + i * 60} 250 L ${380 + i * 60} 490 M 380 ${250 + i * 60} L 620 ${250 + i * 60} `; } return rc.path(d, { stroke: "#2b2f3a", strokeWidth: 2.2, roughness: 1.1, seed: 41 }); });
-        sc.ink((rc) => { let d = ""; for (let r = 0; r < 4; r++) for (let f = 0; f < 4; f++) if ((r + f) % 2) { const x = 384 + f * 60, y = 254 + r * 60; for (let i = 0; i < 6; i++) d += `M ${x + 6 + i * 9} ${y + 48} l ${(i % 3) - 1} -10 `; } return rc.path(d, { stroke: "#5aa04a", strokeWidth: 1.6, roughness: 1, seed: 42 }); });
+        sc.ink((rc) => { let d = ""; for (let i = 0; i <= 4; i++) { d += `M ${380 + i * 60} 250 L ${380 + i * 60} 490 M 380 ${250 + i * 60} L 620 ${250 + i * 60} `; } return rc.path(d, { stroke: "#2b2f3a", strokeWidth: 2.2, roughness: 1.1, seed: 81 }); });
+        sc.ink((rc) => { let d = ""; for (let r = 0; r < 4; r++) for (let f = 0; f < 4; f++) if ((r + f) % 2) { const x = 384 + f * 60, y = 254 + r * 60; for (let i = 0; i < 6; i++) d += `M ${x + 6 + i * 9} ${y + 48} l ${(i % 3) - 1} -10 `; } return rc.path(d, { stroke: "#5aa04a", strokeWidth: 1.6, roughness: 1, seed: 82 }); });
+        sc.ink(theStar(500, 200, 30, 83), twinkle(500, 200));
         sc.creature(1, 390, 380, 50, "happy");
         sc.creature(9, 570, 250, 50, "happy");
-        sc.creature(6, 130, 330, 150, "open", false, (c) => { const a = c.arms[1]; if (a) G.to(a, { rotation: -120, svgOrigin: a.dataset.o, duration: 0.25, yoyo: true, repeat: 5 }); });
-        sc.creature(14, 720, 330, 150, "open", false, (c) => { const a = c.arms[0]; if (a) G.to(a, { rotation: 120, svgOrigin: a.dataset.o, duration: 0.25, yoyo: true, repeat: 5 }); });
-        sc.write("captures get personal", 500, 548, 30, null, "#2b2f3a");
+        sc.creature(6, 130, 330, 150, "open", false, (c) => { const a2 = c.arms[1]; if (a2) G.to(a2, { rotation: -100, svgOrigin: a2.dataset.o, duration: 0.4 }); G.to(c.wrap, { rotation: 10, svgOrigin: "205 480", duration: 0.4, yoyo: true, repeat: 1, delay: 0.6 }); });
+        sc.creature(14, 720, 330, 150, "open", false, (c) => { const a2 = c.arms[0]; if (a2) G.to(a2, { rotation: 100, svgOrigin: a2.dataset.o, duration: 0.4 }); G.to(c.wrap, { rotation: -10, svgOrigin: "795 480", duration: 0.4, yoyo: true, repeat: 1, delay: 0.6 }); });
+        sc.pop("a fair fight!", 500, 548, 30, "#2b2f3a", 2.6);
+      },
+    },
+    {
+      en: "Winner keeps the star. Loser has to draw the next one.",
+      vi: "Bên thắng giữ ngôi sao. Bên thua phải vẽ ngôi sao tiếp theo.",
+      hold: 0.8,
+      draw(sc) {
+        sc.ink(theStar(500, 330, 70, 91), (el) => storyLives.push({ kill: G.to(el, { rotation: 360, svgOrigin: "500 330", duration: 4, repeat: -1, ease: "none" }).kill }));
+        [1, 2, 6, 3].forEach((pc, i) => sc.creature(pc, 40 + i * 95, 420, 95, "happy", false, (c) => hop(c, 16, 3, 0.16 + i * 0.01)));
+        [9, 10, 14, 11].forEach((pc, i) => sc.creature(pc, 590 + i * 95, 420, 95, "happy", false, (c) => hop(c, 16, 3, 0.17 + i * 0.01)));
+        sc.pop("your move!", 500, 215, 46, "#c8452e", 3.0, -3);
+        sc.pop("tới lượt bạn!", 500, 572, 30, "#3c4fb8", 3.4, 2);
       },
     },
   ];
@@ -2256,7 +2636,9 @@
           g.append(t);
           items.texts.push(t);
         },
-        ink(make) { const el = make(rc); g.append(el); items.inks.push(el); },
+        ink(make, act) { const el = make(rc); g.append(el); items.inks.push(el); if (act) (items.inkActs = items.inkActs || []).push([el, act]); return el; },
+        // the sticky words that pop up during a scene (bubbles, sound effects): written later, not with the caption
+        pop(text, x, y, size, color, at = 2.2, rot = 0) { const t = svgEl("text", { x, y, "text-anchor": "middle", class: "st-pop", "font-size": size, fill: color, transform: `rotate(${rot} ${x} ${y})` }); t.textContent = text; t.style.opacity = "0"; g.append(t); (items.pops = items.pops || []).push([t, at]); return t; },
         creature(p, x, y, w, face, flip, act) {
           const c = CR.make(p);
           // the creature's own svg sits at 0,0 at 120 units; a wrapper places and sizes it on the page
@@ -2265,6 +2647,7 @@
           const inner = svgEl("g", flip ? { transform: "translate(120 0) scale(-1 1)" } : {});
           inner.append(c.svg); wrap.append(inner); g.append(wrap);
           c.svg.dataset.x = x + w / 2;
+          c.wrap = wrap; c.at = [x, y, w];
           items.crs.push({ c, face, act });
         },
       };
@@ -2299,7 +2682,10 @@
           if (act) act(c);
         }, null, t0 + 0.9);
       });
-      return at + Math.max(2.4, 1 + crs.length * 0.22 + 1, texts.length * 0.35 + 1.6);
+      const drawn = at + Math.max(2.4, 1 + crs.length * 0.22 + 1, texts.length * 0.35 + 1.6);
+      (sc.items.inkActs || []).forEach(([el, act]) => tl.call(() => { if (!cancelled) act(el); }, null, drawn - 0.3));
+      (sc.items.pops || []).forEach(([t, when]) => tl.fromTo(t, { opacity: 0, scale: 0.2, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(3)" }, at + when));
+      return drawn;
     }
 
     // a pink eraser sweeps across and the strokes it passes disappear
@@ -2322,6 +2708,7 @@
           G.to(p, { opacity: 0, duration: 0.25, delay: d + 0.08 });
         });
         texts.forEach((t) => { const d = (midX(t) / 1000) * dur; G.to(t, { fillOpacity: 0, strokeDashoffset: -2600, duration: 0.45, delay: Math.max(0, d - 0.15), ease: "power1.in" }); });
+        (sc.items.pops || []).forEach(([t]) => { const d = (midX(t) / 1000) * dur; G.to(t, { opacity: 0, duration: 0.3, delay: d }); });
         crs.forEach(({ c }) => { const d = (Number(c.svg.dataset.x) / 1000) * dur; G.to(c.svg, { opacity: 0, duration: 0.3, delay: d }); });
         // eraser crumbs
         for (let i = 0; i < 10; i++) {
@@ -2347,7 +2734,7 @@
       G.set(g, { opacity: 0 });
       tl.set(g, { opacity: 1 }, at);
       const end = drawScene(sc, g, tl, at);
-      at = eraseScene(g, sc, tl, end + 2.2);
+      at = eraseScene(g, sc, tl, end + 2.2 + (scene.hold || 0));
     });
     return new Promise((ok) => {
       const finish = () => {
@@ -2367,7 +2754,7 @@
   function intro() {
     let seen = false;
     try { seen = localStorage.getItem("chess-intro") === "1"; } catch { /* no storage: show it */ }
-    if (!anim || seen) return Promise.resolve();
+    if (!anim || seen || roomFromUrl()) return Promise.resolve();
     try { localStorage.setItem("chess-intro", "1"); } catch { /* fine */ }
     return book();
   }
@@ -2378,6 +2765,8 @@
     drawDeco();
     newGame(true);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => relayout());
+    const code = roomFromUrl();
+    if (code) enterRoom(code);
   }
   // the board is set up once the opening line has been written and the page lifts
   intro().then(start);

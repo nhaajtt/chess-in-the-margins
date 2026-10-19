@@ -83,6 +83,7 @@ that takes the whole game to cross the page, and a cat asleep at the bottom.
 
 ## What you can do
 
+- **Play a friend online:** open a room, send the six-letter code or the link (`chess.nhaajt.com/r/CODE`), and play. No sign-up, just a name. Send little reactions, offer a draw, ask for a rematch; anyone else with the code can watch. If a friend drops out, their creatures doze off until they are back.
 - Play the computer on easy, normal or hard, as either team, or play a friend on the same screen.
 - Use a 5 or 10 minute clock. Every second the old time is crossed out and the new one written in.
 - Undo, flip the board (it turns round on the table) or resign with a sticky note that asks `resign?`.
@@ -101,6 +102,7 @@ No framework and no build step: just HTML, CSS and plain JavaScript in a handful
 | `creatures.js` | The twelve creatures, drawn with [rough.js](https://roughjs.com) from separate parts (legs, arms, hat, face). Each part is drawn twice and the copies take turns so the lines boil. It also handles expressions, idle life, walking and the drawing-in effect. |
 | `game.js` | Everything else: the board on a tilted plane with creatures projected onto it, moves and fights animated with [GSAP](https://gsap.com), the camera, the story, the doodles, the commentary and the clock. |
 | `paper.js` | Paints the sheet of paper once on a canvas. |
+| `server/` | The online rooms: a Cloudflare Worker with one Durable Object per room. It keeps the real game, checks every move with the same `engine.js`, talks over WebSockets, only accepts the game's own pages, rate-limits each socket and forgets a room a day after it was last used. |
 | `scripts/perft.mjs` | Checks the move generator against the standard perft counts. |
 
 The move generator matches the published perft numbers:
@@ -147,6 +149,7 @@ Vua Chim Cánh Cụt bảo nét viền là mực tím. Thế là hai bên phân 
 - **Cả trang giấy đều sống:** mặt trời, mặt trăng ngủ, cá voi được tô màu dần theo ván cờ, bãi biển có nàng tiên cá,
   cá heo, cua, cùng ếch bắt ruồi, mây mưa tưới hoa, khinh khí cầu, máy bay giấy và mèo ngủ.
 - **Phần mở đầu** là một câu chuyện ngắn song ngữ Anh–Việt, vẽ từng cảnh rồi dùng cục tẩy xoá đi trước khi vẽ cảnh mới.
+- **Chơi online với bạn bè:** tạo phòng, gửi mã 6 ký tự hoặc link, không cần đăng ký, chỉ cần tên. Có biểu cảm, xin hoà, chơi lại; người khác có mã thì vào xem.
 - Chơi với máy (dễ, vừa, khó) hoặc hai người chung một máy; có đồng hồ, undo, lật bàn cờ, xin thua, và chơi được bằng bàn phím.
 - Không framework, không build: HTML, CSS và JavaScript thuần. Engine cờ tự viết, kiểm tra bằng perft.
 

@@ -15,11 +15,11 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#f3eee2">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cabin+Sketch:wght@400;700&family=Kalam:wght@300;400;700&family=Patrick+Hand&display=swap">
-<link rel="stylesheet" href="chess.css">
+<link rel="stylesheet" href="/chess.css">
 </head>
 <body class="cx">
 <a class="skip" href="#board">Skip to the board</a>
@@ -84,6 +84,7 @@
       <legend>Who plays</legend>
       <label><input type="radio" name="mode" value="cpu" checked> me against the computer</label>
       <label><input type="radio" name="mode" value="friend"> two of us on this screen</label>
+      <label><input type="radio" name="mode" value="online"> a friend, online</label>
     </fieldset>
     <fieldset class="cx-opts" id="cpu-opts">
       <legend>The computer</legend>
@@ -92,12 +93,33 @@
       <label><input type="radio" name="level" value="hard"> hard</label>
       <label class="cx-opts__wide"><input type="checkbox" id="play-purple"> I play the purple team</label>
     </fieldset>
-    <fieldset class="cx-opts">
+    <fieldset class="cx-opts" id="clock-opts">
       <legend>Clock</legend>
       <label><input type="radio" name="clock" value="0" checked> none</label>
       <label><input type="radio" name="clock" value="5"> 5 min</label>
       <label><input type="radio" name="clock" value="10"> 10 min</label>
     </fieldset>
+
+    <!-- playing a friend online: open a room, send its code or link, play -->
+    <div class="cx-online" id="online" hidden>
+      <div class="cx-online__lobby" id="lobby">
+        <label class="cx-field">Your name <input id="my-name" maxlength="20" autocomplete="nickname" spellcheck="false"></label>
+        <button class="cx-btn cx-btn--solid" id="room-create" type="button">Open a room</button>
+        <form class="cx-join" id="room-join">
+          <input id="room-code" maxlength="6" placeholder="code" aria-label="Room code" autocomplete="off" spellcheck="false">
+          <button class="cx-btn" type="submit">Join</button>
+        </form>
+      </div>
+      <div class="cx-online__room" id="room" hidden>
+        <p class="cx-room__code">room <b id="room-code-show"></b> <button class="cx-btn cx-btn--small" id="room-copy" type="button">Copy link</button></p>
+        <ul class="cx-room__players" id="room-players"></ul>
+        <p class="cx-emotes" id="emotes" aria-label="Send a reaction">
+          <button type="button" data-e="wave">hi!</button><button type="button" data-e="laugh">ha ha</button><button type="button" data-e="grr">grr</button><button type="button" data-e="yawn">yawn</button><button type="button" data-e="love">&#9829;</button><button type="button" data-e="shock">!!</button>
+        </p>
+        <p class="cx-room__actions"><button class="cx-btn cx-btn--small" id="room-draw" type="button">Offer a draw</button><button class="cx-btn cx-btn--small" id="room-leave" type="button">Leave</button></p>
+      </div>
+      <p class="cx-online__msg" id="online-msg" role="status" aria-live="polite"></p>
+    </div>
 
     <h2 class="cx-side__head">The moves</h2>
     <ol class="cx-moves" id="moves"></ol>
@@ -118,9 +140,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js" integrity="sha384-1NLkwxMO2sOqcq7rQkFBhIAUJtbt8ziLxhVKVgKfFGMEU8pF+GEq5LVogviveup6" crossorigin="anonymous" defer></script>
-<script src="paper.js"></script>
-<script src="engine.js" defer></script>
-<script src="creatures.js" defer></script>
-<script src="game.js" defer></script>
+<script src="/paper.js"></script>
+<script src="/engine.js" defer></script>
+<script src="/creatures.js" defer></script>
+<script src="/game.js" defer></script>
 </body>
 </html>
