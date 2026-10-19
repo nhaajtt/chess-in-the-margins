@@ -205,4 +205,7 @@
     },
   };
   root.Sound = Sound;
+  // with sound already on from an earlier visit, the recordings start loading at the first touch or key
+  const warm = () => { if (on && ready()) loadAll(); };
+  ["pointerdown", "keydown"].forEach((t) => root.addEventListener(t, warm, { once: true, passive: true }));
 })(window);
