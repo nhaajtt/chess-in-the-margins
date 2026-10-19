@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chess in the margins — the lab</title>
+<meta name="description" content="Chess drawn on a sheet of paper, where every piece is a creature: mushrooms, ponies and an owl king against blobs, zebras and a penguin king. Play the computer or a friend.">
+<link rel="canonical" href="https://lab.nhaajt.com/chess">
+<meta property="og:title" content="Chess in the margins">
+<meta property="og:description" content="Every piece is a creature, and captures get personal.">
+<meta property="og:url" content="https://lab.nhaajt.com/chess">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://lab.nhaajt.com/assets/og/chess.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f3eee2">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cabin+Sketch:wght@400;700&family=Kalam:wght@300;400;700&family=Patrick+Hand&display=swap">
+<link rel="stylesheet" href="chess.css">
+</head>
+<body class="cx">
+<a class="skip" href="#board">Skip to the board</a>
+
+<header class="cx-nav">
+  <a class="cx-nav__home" href="https://lab.nhaajt.com">nhaajt <i>lab</i></a>
+  <nav aria-label="The lab">
+    <a href="https://github.com/nhaajtt/chess-in-the-margins">Source</a>
+    <a href="https://lab.nhaajt.com">The lab</a>
+    <a href="https://www.nhaajt.com">CV</a>
+  </nav>
+</header>
+
+<!-- The opening: one line written by hand on a blank page, then the camera drops to the board. -->
+<!-- The opening: a short story in English and Vietnamese, drawn scene by scene and rubbed out between scenes (built by game.js). -->
+<div class="cx-intro" id="intro" aria-hidden="true">
+  <button class="cx-intro__skip" id="intro-skip" type="button" tabindex="-1">skip</button>
+</div>
+
+<main class="cx-page" id="main">
+  <h1 class="cx-title">Chess in the margins</h1>
+
+  <!-- sun, moon, a string of stars, a cloud, a whale with an island, grass: drawn in the same pen as the board -->
+  <div class="cx-deco" aria-hidden="true"><svg class="cx-deco__svg" id="deco"></svg></div>
+
+  <section class="cx-table" aria-label="The board">
+    <div class="cx-cam" id="cam">
+      <div class="cx-board" id="board" role="grid" aria-label="Chess board" tabindex="-1">
+        <svg class="cx-board__ink" id="ink" viewBox="-60 -20 920 880" aria-hidden="true"></svg>
+        <svg class="cx-board__marks" id="marks" viewBox="-60 -20 920 880" aria-hidden="true"></svg>
+        <div class="cx-squares" id="squares"></div>
+      </div>
+      <div class="cx-pieces" id="pieces" aria-hidden="true"></div>
+      <svg class="cx-fx" id="fx" aria-hidden="true"></svg>
+    </div>
+    <p class="cx-caption" id="caption" aria-hidden="true"></p>
+    <p class="cx-yourmove" id="yourmove" aria-hidden="true">your move</p>
+  </section>
+
+  <aside class="cx-side" aria-label="Game">
+   <div class="cx-side__a">
+    <p class="cx-status" id="status" role="status" aria-live="polite">Your move. You play the orange team.</p>
+
+    <div class="cx-clocks" id="clocks" hidden>
+      <p class="cx-clock" data-side="1"><span class="cx-clock__who">purple</span><span class="cx-clock__time" id="clock-1"></span></p>
+      <p class="cx-clock" data-side="0"><span class="cx-clock__who">orange</span><span class="cx-clock__time" id="clock-0"></span></p>
+    </div>
+
+    <div class="cx-note cx-note--talk" id="talk" aria-live="polite">the whale is watching</div>
+
+    <p class="cx-buttons">
+      <button class="cx-btn cx-btn--solid" id="new" type="button">New game</button>
+      <button class="cx-btn" id="undo" type="button">Undo</button>
+      <button class="cx-btn" id="flip" type="button">Flip</button>
+      <button class="cx-btn" id="again" type="button">Watch the opening</button>
+    </p>
+    <button class="cx-note cx-note--resign" id="resign" type="button">resign?</button>
+   </div>
+   <div class="cx-side__b">
+
+    <fieldset class="cx-opts">
+      <legend>Who plays</legend>
+      <label><input type="radio" name="mode" value="cpu" checked> me against the computer</label>
+      <label><input type="radio" name="mode" value="friend"> two of us on this screen</label>
+    </fieldset>
+    <fieldset class="cx-opts" id="cpu-opts">
+      <legend>The computer</legend>
+      <label><input type="radio" name="level" value="easy"> easy</label>
+      <label><input type="radio" name="level" value="normal" checked> normal</label>
+      <label><input type="radio" name="level" value="hard"> hard</label>
+      <label class="cx-opts__wide"><input type="checkbox" id="play-purple"> I play the purple team</label>
+    </fieldset>
+    <fieldset class="cx-opts">
+      <legend>Clock</legend>
+      <label><input type="radio" name="clock" value="0" checked> none</label>
+      <label><input type="radio" name="clock" value="5"> 5 min</label>
+      <label><input type="radio" name="clock" value="10"> 10 min</label>
+    </fieldset>
+
+    <h2 class="cx-side__head">The moves</h2>
+    <ol class="cx-moves" id="moves"></ol>
+
+    <h2 class="cx-side__head">Eaten so far</h2>
+    <p class="cx-tray" id="tray-0" aria-label="Taken from the orange team"></p>
+    <p class="cx-tray" id="tray-1" aria-label="Taken from the purple team"></p>
+   </div>
+  </aside>
+</main>
+
+<dialog class="cx-promo" id="promo" aria-label="Choose what the pawn becomes">
+  <p>The pawn reached the end. It grows into:</p>
+  <div class="cx-promo__row" id="promo-row"></div>
+</dialog>
+
+<footer class="cx-foot"><p>Built by nhaajt. The rules and the opponent are written from scratch; the creatures were drawn for this page. <a href="https://lab.nhaajt.com">More at the lab</a></p></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js" integrity="sha384-1NLkwxMO2sOqcq7rQkFBhIAUJtbt8ziLxhVKVgKfFGMEU8pF+GEq5LVogviveup6" crossorigin="anonymous" defer></script>
+<script src="paper.js"></script>
+<script src="engine.js" defer></script>
+<script src="creatures.js" defer></script>
+<script src="game.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "chess-in-the-margins",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chess drawn in ballpoint on a sheet of paper, where every piece is a creature and captures get personal.",
+  "license": "MIT",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "test": "node scripts/perft.mjs"
+  }
+}

@@ -1,0 +1,188 @@
+/* Chess in the margins: a board drawn in pen on a sheet of paper, with crayon creatures for pieces. */
+:root {
+  --paper: #f3eee2;
+  --ink: #2b2f3a;
+  --ink-2: #5d6170;
+  --pen-blue: #3c4fb8;
+  --pen-red: #c8452e;
+  --orange: #e8902a;
+  --leaf: #5aa04a;
+  --note: #fff6c9;
+  --hand: "Kalam", "Comic Sans MS", cursive;
+  --sketch: "Cabin Sketch", "Comic Sans MS", cursive;
+  --wobbly: 255px 18px 225px 18px / 18px 225px 18px 255px;
+  --S: min(68svh, calc(100vw - 440px), 680px);
+  --tilt: 16deg;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { overflow-x: clip; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; overflow-x: clip; color: var(--ink); font: 400 18px/1.5 var(--hand);
+  background-color: #f3eee2;
+  /* crumpled paper, painted by paper.js */
+  background-image: var(--paper-img, none);
+  background-size: max(100%, 1400px) auto;
+  background-position: 50% 0;
+}
+img { display: block; max-width: 100%; }
+a { color: inherit; text-decoration-color: var(--pen-red); text-underline-offset: 0.2em; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px dashed var(--pen-red); outline-offset: 3px; border-radius: 6px; }
+.skip { position: absolute; left: -999px; top: 8px; z-index: 50; background: var(--ink); color: var(--paper); padding: 8px 12px; }
+.skip:focus { left: 8px; }
+
+.cx-nav { display: flex; align-items: center; gap: 22px; padding: 14px clamp(16px, 3vw, 40px); position: relative; z-index: 5; }
+.cx-nav__home { font: 700 24px var(--sketch); text-decoration: none; }
+.cx-nav__home i { font: 700 18px var(--hand); font-style: normal; color: var(--pen-red); display: inline-block; transform: rotate(-6deg); }
+.cx-nav nav { margin-left: auto; display: flex; gap: 18px; }
+.cx-nav nav a { font-weight: 700; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.cx-nav nav a:hover { text-decoration: underline wavy var(--pen-red) 2px; }
+
+/* ---------- the page ---------- */
+.cx-page { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "title title" "table side"; gap: 8px clamp(20px, 3vw, 48px); padding: 0 clamp(16px, 3vw, 40px) 190px; max-width: 1240px; margin: 0 auto; }
+.cx-title { grid-area: title; margin: 84px 0 0; text-align: center; font: 300 clamp(30px, 3.4vw, 46px)/1.1 var(--hand); letter-spacing: 0.01em; position: relative; z-index: 2; }
+.cx-table { grid-area: table; align-self: start; position: relative; display: grid; place-items: start center; padding-top: 12px; }
+.cx-cam { position: relative; isolation: isolate; width: var(--S); aspect-ratio: 920 / 880; transform-origin: 50% 50%; }
+/* the tilt and the spin are driven from game.js, so the camera can come down and the board can turn */
+.cx-board { position: absolute; inset: 0; transform: perspective(1400px) rotateX(var(--tilt-now, var(--tilt))) rotateZ(var(--spin, 0deg)); transform-origin: 50% 50%; outline: none; }
+/* boiling lines: each drawing exists three times and only one copy shows per frame */
+[data-boil="0"] .f1, [data-boil="0"] .f2, [data-boil="1"] .f0, [data-boil="1"] .f2, [data-boil="2"] .f0, [data-boil="2"] .f1 { visibility: hidden; }
+.cx-board__ink, .cx-board__marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cx-board__marks { pointer-events: none; }
+.cx-label { font: 400 46px var(--hand); }
+.cx-zz { font: 400 20px var(--hand); }
+.cx-squares { position: absolute; left: calc(60 / 920 * 100%); top: calc(20 / 880 * 100%); width: calc(800 / 920 * 100%); height: calc(800 / 880 * 100%); display: grid; grid-template: repeat(8, 1fr) / repeat(8, 1fr); }
+.cx-sq { appearance: none; border: 0; padding: 0; margin: 0; background: transparent; cursor: pointer; border-radius: 4px; }
+.cx-sq:focus-visible { outline-offset: -4px; }
+.cx-sq[aria-disabled="true"] { cursor: default; }
+.cx-pieces { position: absolute; inset: 0; pointer-events: none; }
+.cx-piece { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; will-change: transform; }
+/* three layers per creature: .cx-piece is placed on its square, .cx-act carries what it does, .cx-body its breathing */
+.cx-act, .cx-body { position: relative; transform-origin: 50% 100%; }
+/* a creature drawn in code (creatures.js); every part is drawn twice and the copies take turns */
+.cr { display: block; width: 100%; height: auto; overflow: visible; pointer-events: none; }
+[data-cboil="0"] .cr .f1, [data-cboil="1"] .cr .f0 { visibility: hidden; }
+.cx-tray .cr { width: 40px; height: 40px; }
+.cx-promo__row .cr { width: 100%; height: 100%; }
+/* sweat drops falling off a worried creature */
+.cx-drop { position: absolute; right: 8%; top: 18%; width: 13%; aspect-ratio: 1; border-radius: 0 50% 50% 50%; rotate: 45deg; background: #7db7ef; box-shadow: inset -2px -2px 0 rgba(43, 79, 160, 0.45), 0 0 0 1.5px rgba(43, 79, 160, 0.7); pointer-events: none; }
+.cx-bang { position: absolute; left: -8%; top: -10%; font: 700 clamp(18px, 2.6vw, 30px)/1 var(--sketch); color: var(--pen-red); display: none; }
+.cx-piece.is-checked .cx-bang { display: block; }
+.cx-pow__text { font: 700 30px var(--sketch); letter-spacing: 0.02em; }
+.cx-fx { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.cx-caption { position: absolute; left: 0; right: 0; top: 40%; margin: 0; text-align: center; pointer-events: none; font: 300 clamp(30px, 4vw, 54px)/1.1 var(--hand); color: var(--ink); opacity: 0; text-shadow: 0 0 12px var(--paper), 0 0 24px var(--paper); }
+
+/* ---------- the margin ---------- */
+.cx-side { grid-area: side; position: relative; z-index: 2; display: flex; flex-direction: column; gap: 14px; padding-top: 18px; }
+.cx-status { margin: 0; font: 700 21px/1.3 var(--hand); min-height: 2.6em; }
+.cx-status.is-alarm { color: var(--pen-red); }
+.cx-clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cx-clocks[hidden] { display: none; }
+.cx-clock { margin: 0; display: grid; gap: 0; }
+.cx-clock__who { font-size: 14px; color: var(--ink-2); }
+.cx-clock__time { position: relative; height: 1.3em; font: 400 30px/1.3 var(--hand); }
+.cx-clock__time span { position: absolute; left: 0; top: 0; }
+.cx-clock__time span.is-struck { color: var(--ink-2); text-decoration: line-through 2px var(--pen-red); }
+.cx-clock.is-running .cx-clock__time { color: var(--pen-blue); }
+.cx-clock.is-low .cx-clock__time { color: var(--pen-red); }
+.cx-note { position: relative; margin: 6px 0; padding: 14px 16px 12px; background: var(--note); font: 400 19px/1.35 var(--hand); color: var(--ink); box-shadow: 0 10px 18px -12px rgba(0, 0, 0, 0.45); transform: rotate(-1.4deg); border: 0; text-align: left; }
+.cx-note::before { content: ""; position: absolute; top: -10px; left: calc(50% - 34px); width: 68px; height: 22px; background: rgba(242, 138, 178, 0.55); transform: rotate(-4deg); }
+.cx-note--talk { min-height: 3.6em; }
+.cx-note--resign { align-self: flex-start; background: #fffdf7; transform: rotate(2deg); cursor: pointer; padding: 10px 26px; font-size: 21px; box-shadow: inset 0 0 0 2px rgba(60, 79, 184, 0.55), 0 10px 18px -12px rgba(0, 0, 0, 0.45); }
+.cx-note--resign::before { display: none; }
+.cx-note--resign:hover { transform: rotate(-1deg) scale(1.04); }
+.cx-opts { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.cx-opts legend { padding: 0; font: 700 15px var(--hand); color: var(--ink-2); margin-bottom: 2px; }
+.cx-opts label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; }
+.cx-opts__wide { flex-basis: 100%; }
+.cx-opts input { appearance: none; width: 18px; height: 18px; margin: 0; border: 2px solid var(--ink); border-radius: 45% 55% 50% 50%; display: grid; place-items: center; cursor: pointer; background: transparent; }
+.cx-opts input[type="checkbox"] { border-radius: 3px 5px 2px 4px; }
+.cx-opts input:checked::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--pen-red); }
+.cx-opts input[type="checkbox"]:checked::after { content: "\2713"; width: auto; height: auto; background: none; color: var(--pen-red); font: 700 16px/1 var(--hand); }
+.cx-buttons { margin: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.cx-btn { position: relative; min-height: 44px; padding: 0 18px; border: 0; background: transparent; font-weight: 700; cursor: pointer; transition: transform 0.25s cubic-bezier(.3, 1.6, .5, 1); }
+.cx-btn::before { content: ""; position: absolute; inset: 0; border: 2.5px solid var(--ink); border-radius: var(--wobbly); pointer-events: none; }
+.cx-btn--solid { background: url(assets/scrib-yellow.webp) center / 110% 120% no-repeat; }
+.cx-btn:hover:not(:disabled) { transform: rotate(-2deg) scale(1.04); }
+.cx-btn:disabled { opacity: 0.45; cursor: default; }
+.cx-side__head { margin: 6px 0 0; font: 700 22px var(--sketch); }
+.cx-moves { margin: 0; padding: 0 0 0 2.2em; columns: 2; column-gap: 18px; font-size: 17px; max-height: 13.5em; overflow-y: auto; }
+.cx-moves li { break-inside: avoid; }
+.cx-moves li::marker { color: var(--ink-2); }
+.cx-moves .w { color: #b4561d; }
+.cx-moves .b { color: var(--pen-blue); margin-left: 8px; }
+.cx-moves:empty::before { content: "nothing yet"; color: var(--ink-2); }
+.cx-tray { margin: 0; min-height: 36px; display: flex; flex-wrap: wrap; gap: 2px; }
+
+
+.cx-promo { border: 0; padding: 22px; background: var(--paper); color: var(--ink); box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.5); border-radius: 6px; }
+.cx-promo::backdrop { background: rgba(43, 47, 58, 0.35); }
+.cx-promo p { margin: 0 0 12px; font-size: 20px; }
+.cx-promo__row { display: flex; gap: 10px; }
+.cx-promo__row button { width: 90px; height: 100px; border: 2px dashed rgba(43, 47, 58, 0.5); border-radius: 10px; background: #fffdf7; cursor: pointer; padding: 6px; }
+.cx-promo__row button img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ---------- the doodles around the edge ---------- */
+/* the doodles spread across the whole width of the screen, not just the page column */
+.cx-deco { position: absolute; top: 0; bottom: 0; left: calc(50% - 50vw); width: 100vw; pointer-events: none; z-index: 1; }
+.cx-deco__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* ---------- the opening ---------- */
+/* the opening notebook: leaves of paper that are written on and turned over */
+.cx-intro { position: fixed; inset: 0; z-index: 40; display: none; perspective: 2400px; perspective-origin: 0% 50%; }
+.cx-intro.is-on { display: block; }
+.bk-leaf { position: absolute; inset: 0; background-color: #f3eee2; background-image: var(--paper-img, none); background-size: cover; backface-visibility: hidden; transform-style: preserve-3d; box-shadow: 0 0 40px rgba(60, 45, 20, 0.18); display: grid; place-items: center; }
+.bk-shade { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: linear-gradient(90deg, rgba(60, 45, 20, 0.35), rgba(60, 45, 20, 0) 60%); }
+.bk-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bk-text { font-family: var(--hand); font-weight: 300; stroke-width: 1.4; stroke-dasharray: 2600; stroke-dashoffset: 2600; fill-opacity: 0; paint-order: stroke; }
+.bk-stage { position: absolute; left: 50%; top: 52%; transform: translateX(-50%); display: flex; gap: clamp(4px, 2vw, 28px); align-items: flex-end; }
+.bk-stage .cr { width: clamp(70px, 11vw, 150px); }
+.bk-stage--fight { gap: 0; }
+.bk-stage--fight .cr { width: clamp(110px, 16vw, 220px); }
+/* the story: one page, scenes drawn and rubbed out */
+.cx-intro { background-color: #f3eee2; background-image: var(--paper-img, none); background-size: max(100%, 1400px) auto; }
+.st-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.st-text { font-family: var(--hand); font-weight: 300; stroke-width: 1.2; stroke-dasharray: 2600; stroke-dashoffset: 2600; fill-opacity: 0; paint-order: stroke; }
+.st-vi { font-family: "Patrick Hand", var(--hand); font-weight: 400; }
+.st-svg svg.cr { overflow: visible; width: 120px; height: 120px; }
+.cx-intro__skip { position: absolute; right: 24px; bottom: 24px; z-index: 20; border: 0; background: none; font: 400 20px var(--hand); color: var(--ink-2); text-decoration: underline; cursor: pointer; min-height: 44px; }
+.cx-yourmove { position: absolute; left: 0; right: 0; bottom: -46px; margin: 0; text-align: center; font: 400 clamp(30px, 3.2vw, 44px)/1 var(--hand); color: var(--pen-red); opacity: 0; pointer-events: none; }
+
+.cx-foot { padding: 20px clamp(16px, 3vw, 40px) 32px; color: var(--ink-2); font-size: 15px; text-align: center; }
+.cx-foot p { margin: 0; }
+
+.cx-side__a, .cx-side__b { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* on a computer everything fits on one screen: the board sizes itself to the height,
+   the margin panel splits into two columns, and the page does not scroll */
+@media (min-width: 901px) {
+  :root { --S: max(380px, min(calc(100svh - 250px), calc(100vw - 640px), 700px)); }
+  .cx-nav { padding-top: 8px; padding-bottom: 4px; }
+  .cx-page { grid-template-columns: minmax(0, 1fr) minmax(400px, 470px); min-height: calc(100svh - 60px); padding-bottom: 0; grid-template-rows: auto 1fr; }
+  .cx-title { margin-top: 70px; font-size: clamp(28px, 2.8vw, 40px); }
+  .cx-table { padding-top: 4px; }
+  .cx-side { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; align-content: start; padding-top: 6px; }
+  .cx-side__a, .cx-side__b { gap: 10px; }
+  .cx-status { font-size: 18px; min-height: 2.6em; }
+  .cx-note { font-size: 17px; padding: 12px 14px 10px; }
+  .cx-buttons { gap: 8px; }
+  .cx-btn { min-height: 40px; padding: 0 14px; font-size: 16px; }
+  .cx-opts label { min-height: 28px; font-size: 16px; }
+  .cx-opts legend { font-size: 14px; }
+  .cx-side__head { font-size: 19px; margin-top: 2px; }
+  .cx-moves { max-height: min(9.5em, calc(100svh - 620px)); min-height: 3em; font-size: 15px; }
+  .cx-tray { min-height: 32px; }
+  .cx-tray .cr { width: 30px; height: 30px; }
+  .cx-foot { display: none; }
+}
+
+@media (max-width: 900px) {
+  :root { --S: min(calc(100vw - 24px), 640px); --tilt: 9deg; }
+  .cx-page { grid-template-columns: 1fr; grid-template-areas: "title" "table" "side"; padding: 0 12px 130px; }
+  .cx-title { margin-top: 64px; }
+  .cx-side { padding-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-btn { transition: none; }
+}
