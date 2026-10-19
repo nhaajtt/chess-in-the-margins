@@ -4,7 +4,7 @@
 
 **Chess drawn in ballpoint on a sheet of paper, where every piece is a creature and captures get personal.**
 
-[**Play it now: lab.nhaajt.com/chess**](https://lab.nhaajt.com/chess) · [Tiếng Việt](#tiếng-việt) · [How it works](#how-it-works)
+[**Play it now: chess.nhaajt.com**](https://chess.nhaajt.com) · [Tiếng Việt](#tiếng-việt) · [How it works](#how-it-works)
 
 ![MIT licence](https://img.shields.io/badge/licence-MIT-c8452e?style=flat-square)
 ![No build step](https://img.shields.io/badge/build-none-3c4fb8?style=flat-square)
@@ -123,13 +123,17 @@ python -m http.server 8000      # or any static server
 node scripts/perft.mjs          # check the rules
 ```
 
+The live site is deployed on Vercel from `main`; `vercel.json` sets the security headers.
+
+
+
 ---
 
 ## Tiếng Việt
 
 **Cờ vua vẽ bằng bút bi trên trang vở, mỗi quân cờ là một sinh vật, và mỗi lần ăn quân là một trận ẩu đả.**
 
-[Chơi ngay tại lab.nhaajt.com/chess](https://lab.nhaajt.com/chess)
+[Chơi ngay tại chess.nhaajt.com](https://chess.nhaajt.com)
 
 **Câu chuyện:** Ngày xửa ngày xưa, trên một trang vở có hai nhà hàng xóm: **Đồng Cỏ Cam** và **Lọ Mực Tím**.
 Một hôm, ai đó vẽ một ngôi sao vàng duy nhất ngay giữa trang. Vua Cú bảo ngôi sao tô bằng sáp cam nên là của mình.
