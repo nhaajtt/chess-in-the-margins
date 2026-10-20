@@ -74,6 +74,5 @@ Every recording here comes from [Freesound](https://freesound.org) and is releas
 | yay | [yay.wav](https://freesound.org/s/353923/) | dr_skitz |
 | zap | [ELECTRIC_ZAP_001.wav](https://freesound.org/s/136542/) | JoelAudio |
 | v-zebra | [Zebras - Grant's Zebra Braying](https://freesound.org/s/850661/) | TheKingOfGeeks360 |
-| v-ghost | [Cartoon - Smoochy Squeak + Plop](https://freesound.org/s/444494/) | Breviceps |
 | blob-hop | [Cute Bounce Jump.wav](https://freesound.org/s/618961/) | Hemplock |
-| bloop | [waterbloop.mp3](https://freesound.org/s/611642/) | kstargio |
+| bloop, v-blob | [waterbloop.mp3](https://freesound.org/s/611642/) | kstargio |

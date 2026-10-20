@@ -341,6 +341,7 @@
         G.delayedCall(t0 + 0.75, () => sfx("appear", f, colorOf(el.__p), el.__p & 7));
       }
       G.delayedCall(drawAt + 8 * 0.2 + 0.85, () => sfx("tada"));
+      G.delayedCall(drawAt + 8 * 0.2 + 1.8, askForTap);
       const done = drawAt + 8 * 0.2 + 0.9;
       penBusy = true;
       G.delayedCall(done, () => { penBusy = false; if (!decoDrawing) bakePieces(); });
@@ -564,6 +565,20 @@
     return !over && !busy && (mode === "friend" || game.turn === human);
   }
 
+  // a lean or a squash that was cut off halfway (a scene called off, a move that came first) would leave a creature
+  // tilted; at the next touch everyone who is just standing on their square stands up straight again
+  function straighten() {
+    if (!anim || motions.length || busy) return;
+    for (const [sq, el] of els) {
+      if (el.__away || el.__at !== sq || el === peeked || !el.isConnected) continue;
+      const a = el.__act;
+      if (["rotation", "x", "y"].some((k) => Math.abs(G.getProperty(a, k)) > 0.5) || ["scaleX", "scaleY"].some((k) => Math.abs(G.getProperty(a, k) - 1) > 0.02))
+        G.to(a, { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1, duration: 0.3, ease: "power2.out", overwrite: "auto" });
+      if (!el.__live) wake(el);
+    }
+  }
+  document.addEventListener("pointerdown", straighten, true);
+  document.addEventListener("keydown", straighten, true);
   function onSquare(sq) {
     if (mode === "online" && !humanTurn()) {
       const p = game.get(sq);
@@ -1410,92 +1425,12 @@
     shooting = setTimeout(shoot, R(1500, 5000));
   }
 
-  /* ---------- after dark you play by torchlight: a big torch lights the board, everything else stays dark ---------- */
-  const torch = { on: false, k: 0, dark: 0, lit: null, shade: null, timer: 0 };
-  function torchBuild() {
-    const lit = document.createElement("div");
-    lit.className = "cx-lit";
-    lit.setAttribute("aria-hidden", "true");
-    $("cam").before(lit);
-    const shade = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    shade.setAttribute("class", "cx-shade");
-    shade.setAttribute("aria-hidden", "true");
-    // the dark is a sheet with a hole: the mask is white where it is dark, black where the light falls, grey in the beam
-    shade.innerHTML = `<defs>
-      <radialGradient id="torch-spot"><stop offset="0.55" stop-color="#000"/><stop offset="1" stop-color="#fff"/></radialGradient>
-      <linearGradient id="torch-cone" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6a6a6a"/><stop offset="1" stop-color="#a0a0a0"/></linearGradient>
-      <mask id="torch-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="99999" height="99999">
-        <rect class="cx-shade__all" x="0" y="0" fill="#fff"/><path class="cx-shade__cone" fill="url(#torch-cone)"/><ellipse class="cx-shade__spot" fill="url(#torch-spot)"/>
-      </mask></defs>
-      <rect class="cx-shade__dark" x="0" y="0" fill="#060914" mask="url(#torch-mask)" opacity="0"/>
-      <path class="cx-shade__haze" fill="rgba(255, 228, 160, 0.06)"/>
-      <g class="cx-shade__torch" opacity="0">
-        <path d="M-236 -21 Q-242 0 -236 21 L-74 23 Q-69 0 -74 -23 Z" fill="#e8902a" stroke="#191b22" stroke-width="3.5" stroke-linejoin="round"/>
-        <path d="M-214 -20 Q-212 0 -214 20 M-198 -21 Q-196 0 -198 21 M-182 -21 Q-180 0 -182 21" fill="none" stroke="#b5651d" stroke-width="3" stroke-linecap="round"/>
-        <path d="M-138 -23 L-136 -33 L-112 -33 L-110 -23" fill="#c8452e" stroke="#191b22" stroke-width="3" stroke-linejoin="round"/>
-        <path d="M-76 -24 L-8 -44 Q3 0 -8 44 L-76 24 Z" fill="#cdd2dc" stroke="#191b22" stroke-width="3.5" stroke-linejoin="round"/>
-        <path d="M-56 -28 L-56 28" stroke="#9aa1b0" stroke-width="3"/>
-        <path d="M-6 -41 Q5 0 -6 41" fill="none" stroke="#ffe7a6" stroke-width="7" stroke-linecap="round"/>
-      </g>`;
-    document.body.append(shade);
-    torch.lit = lit; torch.shade = shade;
-    const relayout = () => { if (torch.on || torch.k) requestAnimationFrame(torchLayout); };
-    addEventListener("scroll", relayout, { passive: true });
-    addEventListener("resize", relayout);
-  }
-  // where the board is right now, and so where the light, the beam and the torch go
-  function torchLayout() {
-    const { lit, shade } = torch, cam = $("cam");
-    if (!shade || !cam) return;
-    const r = cam.getBoundingClientRect(), vw = innerWidth, vh = innerHeight, M = 40;
-    const cx = r.left + r.width / 2 + M, cy = r.top + r.height / 2 + M, rx = r.width * 0.9 * torch.k, ry = r.height * (vw < 900 ? 0.8 : 0.9) * torch.k;
-    const q = (s) => shade.querySelector(s);
-    ["cx-shade__all", "cx-shade__dark"].forEach((c) => { const e = q("." + c); e.setAttribute("width", vw + M * 2); e.setAttribute("height", vh + M * 2); });
-    const spot = q(".cx-shade__spot");
-    spot.setAttribute("cx", cx); spot.setAttribute("cy", cy); spot.setAttribute("rx", Math.max(1, rx)); spot.setAttribute("ry", Math.max(1, ry));
-    q(".cx-shade__dark").setAttribute("opacity", torch.dark);
-    // the torch is held at the bottom corner of the screen, pointing at the board
-    const narrow = vw < 900, k = narrow ? 0.55 : Math.min(0.85, vw / 1700 + 0.1);
-    const hx = (narrow ? 70 : Math.min(190, vw * 0.11)) + M, hy = vh - (narrow ? 34 : 110) + M;
-    const a = Math.atan2(cy - hy, cx - hx), nx = -Math.sin(a), ny = Math.cos(a);
-    const g = q(".cx-shade__torch");
-    g.setAttribute("transform", `translate(${hx.toFixed(1)} ${hy.toFixed(1)}) rotate(${(a * 180 / Math.PI).toFixed(1)}) scale(${k.toFixed(2)})`);
-    g.setAttribute("opacity", Math.min(1, torch.dark * 1.6));
-    // the beam: from the edge of the lens to either side of the pool of light
-    const w0 = 40 * k, w1 = (rx + ry) / 2 * 0.8;
-    const d = `M${hx + nx * w0} ${hy + ny * w0} L${cx + nx * w1} ${cy + ny * w1} L${cx - nx * w1} ${cy - ny * w1} L${hx - nx * w0} ${hy - ny * w0} Z`;
-    q(".cx-shade__cone").setAttribute("d", torch.k > 0.05 ? d : "");
-    q(".cx-shade__haze").setAttribute("d", torch.k > 0.05 ? d : "");
-    const cg = shade.querySelector("#torch-cone");
-    cg.setAttribute("x1", hx); cg.setAttribute("y1", hy); cg.setAttribute("x2", cx); cg.setAttribute("y2", cy);
-    // the warm, lit paper under the board, in the table's own coordinates
-    lit.style.width = `${rx * 2}px`; lit.style.height = `${ry * 2}px`;
-    lit.style.left = `${cam.offsetLeft + cam.offsetWidth / 2 - rx}px`; lit.style.top = `${cam.offsetTop + cam.offsetHeight / 2 - ry}px`;
-    lit.style.opacity = String(Math.min(1, torch.k * 1.2));
-  }
-  function torchSet(on) {
-    if (on === torch.on) return;
-    torch.on = on;
-    if (!torch.shade) { if (!on) return; torchBuild(); }
-    document.body.classList.toggle("is-torch", on);
-    clearInterval(torch.timer);
-    if (G) G.killTweensOf(torch);
-    torch.shade.style.display = "";
-    if (on) {
-      // the board can move (the camera follows the fights), so the light keeps checking where it is
-      torch.timer = setInterval(torchLayout, 400);
-      if (!anim) { torch.dark = 0.68; torch.k = 1; torchLayout(); return; }
-      // the room goes dark, then click: the torch comes on and the pool of light opens up
-      G.timeline({ onUpdate: torchLayout })
-        .to(torch, { dark: 0.68, duration: 0.9, ease: "power1.inOut" })
-        .call(() => sfx("torch"))
-        .to(torch, { k: 1, duration: 0.6, ease: "back.out(1.6)" });
-    } else {
-      const gone = () => { torchLayout(); if (!torch.on) torch.shade.style.display = "none"; };
-      if (!anim) { torch.dark = 0; torch.k = 0; gone(); return; }
-      G.to(torch, { dark: 0, k: 0, duration: 0.8, ease: "power1.inOut", onUpdate: torchLayout, onComplete: gone });
-    }
-  }
+  // after dark the board is played by torchlight (torch.js): the light falls on the board, the warm paper under it
+  if (window.Torch) window.Torch.init({
+    gsap: G, anim, sfx,
+    target: () => $("cam").getBoundingClientRect(),
+    lit: { before: $("cam"), place(lit, rx, ry) { const cam = $("cam"); lit.style.width = `${rx * 2}px`; lit.style.height = `${ry * 2}px`; lit.style.left = `${cam.offsetLeft + cam.offsetWidth / 2 - rx}px`; lit.style.top = `${cam.offsetTop + cam.offsetHeight / 2 - ry}px`; } },
+  });
 
   let decoPics = [], decoGen = 0, decoDrawing = false, beachKit = null, frogKit = null;
   function flattenDeco(after) {
@@ -1522,7 +1457,7 @@
     document.body.classList.toggle("is-night", nightNow);
     nightLayer(nightNow);
     if (SND.ambience) SND.ambience(nightNow ? "night" : "day");
-    torchSet(nightNow);
+    if (window.Torch) window.Torch.set(nightNow);
     decoPics.forEach((u) => CR.release(u));
     decoPics = [];
     decoTweens.forEach((t) => t.kill());
@@ -3623,7 +3558,7 @@
       G.timeline().to(el.__act, { x: 4, duration: 0.05, yoyo: true, repeat: 11 }).call(() => { el.classList.remove("is-cross"); CR.restFace(c); }, null, "+=1.2");
       return;
     }
-    sfx("giggle");
+    sfx("nudge", el.__p & 7, colorOf(el.__p));
     CR.setFace(c, "happy", beak(c) ? "open" : "grin");
     G.timeline().to(el.__act, { rotation: 8, duration: 0.07, yoyo: true, repeat: 5 }).call(() => { if (c.state === "happy") CR.restFace(c); });
     if (rec.n >= 2) quip(sq, ["", "", "hehe", "that tickles!", "stop it! hehe"][rec.n], 0.9);
@@ -4048,127 +3983,62 @@
   const soundBtn = $("sound");
   const paintSound = () => { soundBtn.textContent = SND.on ? "sound: on" : "sound: off"; soundBtn.setAttribute("aria-pressed", String(SND.on)); };
   if (soundBtn) { paintSound(); soundBtn.addEventListener("click", () => { SND.set(!SND.on); paintSound(); }); }
-  /* ---------- the volume: a slingshot. Pull the pebble back and let go; the further it flies, the louder ---------- */
-  const sling = $("sling");
-  if (sling) {
-    const X0 = 92, X1 = 306, GY = 94, REST = { x: 40, y: 54 }, PULL = 38, L = { x: 27, y: 46 }, Rt = { x: 53, y: 46 };
-    const xOf = (v) => X0 + v * (X1 - X0);
-    const ticks = Array.from({ length: 11 }, (_, i) => `M${xOf(i / 10).toFixed(1)} ${GY - (i % 5 ? 3 : 6)} L${xOf(i / 10).toFixed(1)} ${GY + 3}`).join(" ");
-    sling.innerHTML = `<svg class="cx-sling__svg" viewBox="0 0 320 116" aria-hidden="true">
-      <text class="cx-sling__lab" x="2" y="14" fill="#5d6170">volume: pull the pebble back, let go</text>
-      <path d="M78 ${GY} Q150 ${GY - 2} 210 ${GY + 1} T316 ${GY - 1}" fill="none" stroke="#2b2f3a" stroke-width="2.2" stroke-linecap="round"/>
-      <path d="${ticks}" stroke="#2b2f3a" stroke-width="1.6" stroke-linecap="round"/>
-      <text class="cx-sling__lab" x="${X0}" y="112" fill="#5d6170" text-anchor="middle">shh</text>
-      <text class="cx-sling__lab" x="${X1}" y="112" fill="#c8452e" text-anchor="middle">LOUD</text>
-      <path class="cx-sling__trail" fill="none" stroke="#3c4fb8" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>
-      <path class="cx-sling__mark" fill="none" stroke="#3c4fb8" stroke-width="2.5" stroke-linecap="round"/>
-      <g class="cx-sling__flag">
-        <path d="M0 2 L0 -34" stroke="#2b2f3a" stroke-width="2.5" stroke-linecap="round"/>
-        <path d="M0 -34 L22 -28 L0 -21 Z" fill="#e8432e" stroke="#2b2f3a" stroke-width="1.8" stroke-linejoin="round"/>
-        <text class="cx-sling__pct" x="4" y="-39" fill="#2b2f3a"></text>
-      </g>
-      <path class="cx-sling__band cx-sling__band--back" fill="none" stroke="#6b4423" stroke-width="3.2" stroke-linecap="round"/>
-      <path d="M40 112 L40 76 M40 78 Q30 66 27 46 M40 78 Q50 66 53 46" fill="none" stroke="#8a5a2b" stroke-width="6" stroke-linecap="round"/>
-      <path d="M38 110 L38 80 M37 72 Q30 62 28 50" fill="none" stroke="#2b2f3a" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
-      <circle class="cx-sling__pebble" r="8" fill="#9b968c" stroke="#2b2f3a" stroke-width="2"/>
-      <path class="cx-sling__band cx-sling__band--front" fill="none" stroke="#6b4423" stroke-width="3.2" stroke-linecap="round"/>
-      <rect class="cx-sling__grab" x="0" y="20" width="92" height="96" fill="transparent"/>
-    </svg>`;
-    const svg = sling.firstElementChild, q = (s) => svg.querySelector(s);
-    const pebble = q(".cx-sling__pebble"), back = q(".cx-sling__band--back"), front = q(".cx-sling__band--front");
-    const trail = q(".cx-sling__trail"), mark = q(".cx-sling__mark"), flag = q(".cx-sling__flag"), pct = q(".cx-sling__pct");
-    const at = { x: REST.x, y: REST.y };
-    const draw = () => {
-      pebble.setAttribute("cx", at.x.toFixed(1)); pebble.setAttribute("cy", at.y.toFixed(1));
-      const held = Math.hypot(at.x - REST.x, at.y - REST.y) < PULL * 1.3 && at.x < 70;
-      const p = held ? at : REST;
-      back.setAttribute("d", `M${L.x} ${L.y} L${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
-      front.setAttribute("d", `M${p.x.toFixed(1)} ${p.y.toFixed(1)} L${Rt.x} ${Rt.y}`);
+  /* ---------- the volume slingshot (sling.js), and the creatures it can be aimed at ---------- */
+  const quietNow = () => !over && !busy && !penBusy && !decoDrawing && !motions.length && !outing && selected < 0 && !document.hidden && !$("intro").classList.contains("is-on");
+  // a creature on the board, described the way sling.js wants it: where it is, how to move it, how to hand it back
+  const pieceActor = (sq, el) => {
+    const s = () => spot(el.__at);
+    return {
+      el, act: el.__act, c: el.__c, kind: el.__p & 7, side: colorOf(el.__p),
+      rect: () => el.getBoundingClientRect(),
+      free: () => el.isConnected && !el.__away && el.__at === sq,
+      toFrame: (vx, vy) => pageToLayer(vx, vy),
+      width: () => s().w,
+      put: (fx, fy) => ({ x: fx - s().w / 2, y: fy - s().w }),
+      pos: () => [G.getProperty(el, "x") + s().w / 2, G.getProperty(el, "y") + s().w],
+      home: () => { const p = s(); return [p.x, p.y]; },
+      cross: (on) => el.classList.toggle("is-cross", on),
     };
-    const arc = (v) => { const tx = xOf(v), top = GY - 46 - v * 34; return { tx, cx: (REST.x + tx) / 2, cy: top * 2 - (REST.y + GY) / 2 }; };
-    const paintFlag = (v, move = true) => {
-      pct.textContent = Math.round(v * 100);
-      sling.setAttribute("aria-valuenow", String(Math.round(v * 100)));
-      sling.setAttribute("aria-valuetext", v ? `${Math.round(v * 100)} percent` : "silent");
-      sling.classList.toggle("is-muted", !SND.on || !v);
-      if (move) flag.setAttribute("transform", `translate(${xOf(v).toFixed(1)} ${GY})`);
-    };
-    sling.setAttribute("role", "slider");
-    sling.setAttribute("tabindex", "0");
-    sling.setAttribute("aria-label", "Volume");
-    sling.setAttribute("aria-valuemin", "0");
-    sling.setAttribute("aria-valuemax", "100");
-    draw();
-    paintFlag(SND.volume ?? 0.7);
-    // the pebble lands, the flag runs over to it, and that is the new volume
-    const landed = (v) => {
-      if (!SND.on && v > 0) { SND.set(true); paintSound(); }
-      if (SND.setVolume) SND.setVolume(v);
-      sfx("pebble");
-      paintFlag(v, !anim);
-      if (anim) {
-        const fx = { x: Number((flag.getAttribute("transform") || "").match(/translate\(([\d.]+)/)?.[1] || xOf(v)) };
-        G.timeline()
-          .to(fx, { x: xOf(v), duration: 0.45, ease: "power2.inOut", onUpdate: () => flag.setAttribute("transform", `translate(${fx.x.toFixed(1)} ${GY}) rotate(${Math.sin(fx.x / 4) * 8})`) })
-          .call(() => flag.setAttribute("transform", `translate(${xOf(v).toFixed(1)} ${GY})`));
-        G.timeline().to(pebble, { opacity: 0, duration: 0.3, delay: 0.5 }).call(() => { at.x = REST.x; at.y = REST.y; draw(); })
-          .fromTo(pebble, { opacity: 0, scale: 0.2, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" });
-      } else { at.x = REST.x; at.y = REST.y; draw(); }
-    };
-    const shoot = (v) => {
-      v = Math.max(0, Math.min(1, v));
-      trail.setAttribute("d", ""); mark.setAttribute("d", "");
-      if (!anim || v === 0) { landed(v); return; }
-      sfx("twang", v);
-      const a = arc(v), from = { x: at.x, y: at.y }, t = { u: 0 };
-      // the band springs back past the fork and wobbles; the pebble flies on its arc
-      G.to(t, { u: 1, duration: 0.45 + v * 0.35, ease: "none", onUpdate: () => {
-        const u = t.u, s = 1 - u;
-        at.x = s * s * from.x + 2 * s * u * a.cx + u * u * a.tx;
-        at.y = s * s * from.y + 2 * s * u * a.cy + u * u * (GY - 7);
-        draw();
-      }, onComplete: () => landed(v) });
-    };
-    // pulling: the band stretches, and a dotted line shows where the pebble would land
-    let pulling = false, power = 0;
-    const toSvg = (e) => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
-    const grab = q(".cx-sling__grab");
-    grab.addEventListener("pointerdown", (e) => { pulling = true; sling.classList.add("is-pulling"); grab.setPointerCapture(e.pointerId); e.preventDefault(); });
-    grab.addEventListener("pointermove", (e) => {
-      if (!pulling) return;
-      const p = toSvg(e);
-      let dx = p.x - REST.x, dy = p.y - REST.y;
-      const len = Math.hypot(dx, dy), m = Math.min(len, PULL);
-      if (len > 0) { dx = dx / len * m; dy = dy / len * m; }
-      at.x = REST.x + dx; at.y = REST.y + dy;
-      power = dx < 0 ? Math.min(1, m / PULL) : 0;
-      draw();
-      if (power > 0.02) {
-        const a = arc(power);
-        trail.setAttribute("d", `M${REST.x} ${REST.y} Q${a.cx.toFixed(1)} ${a.cy.toFixed(1)} ${a.tx.toFixed(1)} ${GY - 7}`);
-        mark.setAttribute("d", `M${a.tx - 5} ${GY - 12} L${a.tx + 5} ${GY - 2} M${a.tx + 5} ${GY - 12} L${a.tx - 5} ${GY - 2}`);
-      } else { trail.setAttribute("d", ""); mark.setAttribute("d", ""); }
+  };
+  const boardActors = () => onBoard(() => true).map(({ sq, el }) => pieceActor(sq, el));
+  const slingEl = $("sling");
+  const slingApi = slingEl && window.Sling ? window.Sling.mount(slingEl, {
+    gsap: G, anim, sound: SND, sfx, paintSound,
+    world: () => !$("intro").classList.contains("is-on"),
+    range: () => { const r = $("cam").getBoundingClientRect(), s = slingEl.getBoundingClientRect(); return Math.max(420, s.left - r.left + 60); },
+    targets: boardActors,
+    actors: boardActors,
+    quiet: quietNow,
+    calm: () => { if (outing && outing.hurry) outing.hurry(); },
+    borrow(list, onEnd) {
+      if (!quietNow()) return null;
+      const job = skit(list.map((a) => a.el));
+      tableEl.style.zIndex = "5";
+      list.forEach((a) => { a.el.style.zIndex = "2000"; });
+      job.after = () => { tableEl.style.zIndex = ""; list.forEach((a) => a.cross(false)); onEnd(); };
+      return { add: job.add, end: job.end, get done() { return job.done; } };
+    },
+  }) : null;
+  if (soundBtn && slingApi) soundBtn.addEventListener("click", slingApi.paint);
+
+  // the browser keeps the page quiet until it is touched, so once the board is drawn a little one asks for that touch
+  let tapAsked = false;
+  function askForTap() {
+    if (tapAsked || !window.Sling || SND.live) return;
+    tapAsked = true;
+    const sq = human === 1 ? 0x64 : 0x14, el = els.get(sq) || [...els.values()].find((e) => colorOf(e.__p) === (human === 1 ? 1 : 0));
+    if (!el) return;
+    window.Sling.tapMe({
+      sound: SND, gsap: G, anim, paintSound: () => { paintSound(); if (slingApi) slingApi.paint(); },
+      rect: () => el.isConnected ? el.getBoundingClientRect() : null,
+      raise: (on) => { if (!anim || !el.isConnected) return; const arm = el.__c.arms[el.__c.arms.length - 1]; if (arm && !el.__c.spec.wings) G.to(arm, { rotation: on ? -150 : 0, svgOrigin: arm.dataset.o, duration: 0.3 }); },
+      thanks: () => {
+        sfx("select", el.__p & 7, colorOf(el.__p));
+        if (!anim || !el.isConnected) return;
+        CR.setFace(el.__c, "happy", beak(el.__c) ? "open" : "grin");
+        G.timeline().to(el.__act, { y: -26, duration: 0.18, ease: "power2.out" }).to(el.__act, { y: 0, duration: 0.45, ease: "bounce.out" }).call(() => CR.restFace(el.__c), null, "+=0.6");
+      },
     });
-    const release = () => {
-      if (!pulling) return;
-      pulling = false;
-      sling.classList.remove("is-pulling");
-      if (power > 0.02) shoot(power);
-      else if (anim) G.to(at, { x: REST.x, y: REST.y, duration: 0.5, ease: "elastic.out(1, 0.4)", onUpdate: draw });
-      else { at.x = REST.x; at.y = REST.y; draw(); }
-      power = 0;
-    };
-    grab.addEventListener("pointerup", release);
-    grab.addEventListener("pointercancel", release);
-    // keys: a gentler shot, a tenth at a time
-    sling.addEventListener("keydown", (e) => {
-      const v = SND.volume ?? 0.7;
-      const to = { ArrowRight: v + 0.1, ArrowUp: v + 0.1, ArrowLeft: v - 0.1, ArrowDown: v - 0.1, Home: 0, End: 1 }[e.key];
-      if (to === undefined) return;
-      e.preventDefault();
-      shoot(Math.round(Math.max(0, Math.min(1, to)) * 10) / 10);
-    });
-    soundBtn.addEventListener("click", () => paintFlag(SND.volume ?? 0.7, false));
   }
 
 

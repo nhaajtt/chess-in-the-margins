@@ -8,7 +8,7 @@
 (function (root) {
   "use strict";
   let ctx = null, out = null, bus = null;
-  const BASE = root.SFX_BASE || "/assets/sfx/";
+  const BASE = root.SFX_BASE || "/assets/sfx/", VER = "3";
   let on = false, vol = 0.7, master = null;
   try { const v = parseFloat(localStorage.getItem("chess-volume")); if (v >= 0 && v <= 1) vol = v; } catch { /* private window */ }
   try { on = localStorage.getItem("chess-sound") === "on"; } catch { /* private window */ }
@@ -239,13 +239,13 @@
     "flap-soft", "gallop", "grass", "grass-hi", "gull", "hoot-far", "jump", "knock", "page", "paper", "peck", "pencil", "pinch", "poof",
     "pop", "popper", "punch", "rain", "rewind", "ribbit", "sandstep", "scrape", "shutter", "slap", "slide-down", "slide-up", "snore",
     "snort", "sparkle", "spell", "splash", "squeak", "squeak2", "squish", "star", "swish-wood", "swosh", "tea", "thud", "tiptoe", "trot",
-    "ufo", "blob-hop", "bloop", "v-acorn", "v-bee", "v-bird", "v-ghost", "v-mushroom", "v-owl", "v-penguin", "v-pony", "v-puff", "v-sand", "v-wizard",
+    "ufo", "blob-hop", "bloop", "v-blob", "v-acorn", "v-bee", "v-bird", "v-mushroom", "v-owl", "v-penguin", "v-pony", "v-puff", "v-sand", "v-wizard",
     "v-zebra", "waddle", "wand", "whoosh", "yawn", "yay", "zap", "amb-day", "amb-night"];
   const buf = {};
   const has = (n) => Boolean(buf[n]);
   function load() {
     FILES.forEach((n) => {
-      fetch(BASE + n + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+      fetch(BASE + n + ".mp3?v=" + VER).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
         .then((b) => ctx.decodeAudioData(b)).then((d) => { buf[n] = d; if (n.startsWith("amb-")) ambience(); })
         .catch(() => { /* the toy box covers for it */ });
     });
@@ -272,14 +272,14 @@
 
   // who is who: each kind of piece is a different creature on each team, with its own voice and its own feet
   const WHO = {
-    "1-0": "mushroom", "1-1": "ghost", "2-0": "pony", "2-1": "zebra", "3-0": "acorn", "3-1": "wizard",
+    "1-0": "mushroom", "1-1": "blob", "2-0": "pony", "2-1": "zebra", "3-0": "acorn", "3-1": "wizard",
     "4-0": "sand", "4-1": "puff", "5-0": "bee", "5-1": "bird", "6-0": "owl", "6-1": "penguin",
   };
   const who = (kind, side) => WHO[`${kind}-${side ? 1 : 0}`] || "mushroom";
   const voice = (kind, side, at = 0, vol = 1, rate = 1) => S("v-" + who(kind, side), at, vol, rate);
   // footsteps: tiny pitter-patter, hooves, crunching sand, flapping wings...
   const FEET = {
-    mushroom: () => S("tiptoe", 0, 0.9, 1.1), ghost: () => S("blob-hop", 0, 0.8, R(0.95, 1.1)), pony: () => S("clop"), zebra: () => S("clop", 0, 1, 0.92),
+    mushroom: () => S("tiptoe", 0, 0.9, 1.1), blob: () => S("blob-hop", 0, 0.8, R(0.95, 1.1)), pony: () => S("clop"), zebra: () => S("clop", 0, 1, 0.92),
     acorn: () => S("grass-hi"), wizard: () => S("grass", 0, 1, 1.05), sand: () => S("sandstep"), puff: () => S("swosh", 0, 0.6, 0.8),
     bee: () => S("buzz", 0, 0.8), bird: () => S("flap"), owl: () => S("grass", 0, 1.1, 0.85),
     penguin: () => { S("tiptoe", 0, 0.5, 0.8); return S("waddle", 0, 0.8, R(0.9, 1.1)); },
@@ -293,11 +293,11 @@
   const WINDUP = {
     acorn: () => S("swish-wood"), wizard: () => S("spell", 0, 0.7), bee: () => S("wand", 0, 0.7), pony: () => S("snort", 0, 0.7),
     zebra: () => S("snort", 0, 0.7, 0.9), owl: () => S("flap", 0, 1, 0.85), bird: () => S("flap"), penguin: () => S("slide-down", 0, 0.45),
-    sand: () => S("scrape", 0, 0.8, 0.8), ghost: () => S("blob-hop", 0, 0.9, 0.9), puff: () => S("whoosh", 0, 0.5, 0.9), mushroom: () => S("whoosh"),
+    sand: () => S("scrape", 0, 0.8, 0.8), blob: () => S("blob-hop", 0, 0.9, 0.9), puff: () => S("whoosh", 0, 0.5, 0.9), mushroom: () => S("whoosh"),
   };
   // the blow itself
   const BLOW = {
-    mushroom: () => S("bonk"), ghost: () => { S("bloop", 0.1, 0.8); return S("squish"); },
+    mushroom: () => S("bonk"), blob: () => { S("bloop", 0.1, 0.8); return S("squish"); },
     pony: () => { voice(2, 0, 0.12, 0.6); return S("punch"); }, zebra: () => { voice(2, 1, 0.12, 0.6); return S("punch"); },
     acorn: () => { S("knock", 0.09, 0.6, 1.2); return S("clack-wood"); }, wizard: () => S("zap"),
     sand: () => S("crumble"), puff: () => S("poof"),
@@ -307,6 +307,17 @@
   };
 
   const REAL = {
+    // a tap on a creature whose team is not moving: a soft little blup, nothing more
+    nudge() { return S("bloop", 0, 0.28, 1.2); },
+    // what the slingshot fires, landing
+    ammo(name = "pebble") {
+      if (name === "acorn") return S("clack-wood", 0, 0.7, 1.3);
+      if (name === "paper") return S("paper", 0, 0.9, 1.1);
+      if (name === "balloon") return S("splash");
+      if (name === "tomato") { S("bloop", 0.03, 0.5, 0.8); return S("squish"); }
+      if (name === "duck") return S("squeak");
+      return this.pebble();
+    },
     torch() { S("knock", 0.06, 0.4, 1.8); return S("shutter", 0, 0.5, 0.8); },
     pebble() { S("sandstep", 0.03, 0.7, 1.2); return S("knock", 0, 0.7, 1.6); },
     select(kind = 1, side = 0) { return kind === 2 && Math.random() < 0.6 ? S("snort", 0, 0.8, side ? 0.92 : 1) : voice(kind, side); },
@@ -354,7 +365,8 @@
     pinch() { return S("pinch") && S("pinch", 0.1, 0.8, 1.1); },
     page() { return S("page"); },
     confetti() { return S("popper") && S("yay", 0.15, 0.6); },
-    shootingstar() { return S("star", 0, 0.8); },
+    // shooting stars cross the sky in silence (a chime every few seconds soon wears thin)
+    shootingstar() { return true; },
     // a real pencil on paper, a different stretch of the recording every time
     pencil(dur = 0.5, busy = 1) {
       const b = buf.pencil;
@@ -384,6 +396,9 @@
   };
   SYNTH.pebble = () => SYNTH.tick();
   SYNTH.torch = () => SYNTH.tick();
+  SYNTH.nudge = () => {};
+  SYNTH.ammo = () => SYNTH.tick();
+  SYNTH.shootingstar = () => {};
   SYNTH.move = (kind = 1) => { if (kind === 2) SYNTH.boing(); else if (kind === 4 || kind === 5) SYNTH.step(kind); };
   SYNTH.windup = () => SYNTH.whoosh();
   SYNTH.ouch = () => SYNTH.land();
@@ -457,6 +472,9 @@
         if (SYNTH[name]) SYNTH[name](...args);
       } catch { /* a sound never breaks the game */ }
     },
+    // whether the browser lets the page make sound yet (it waits for the first touch)
+    get live() { return Boolean(ctx && ctx.state === "running"); },
+    unlock() { if (on) ready(); },
     // how loud, 0..1 (remembered); 0 is as good as off
     get volume() { return vol; },
     setVolume(v) {

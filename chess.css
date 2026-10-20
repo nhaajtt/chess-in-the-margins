@@ -279,7 +279,7 @@ body.is-night .cx-btn--solid { color: #2b2f3a; }
 
 /* ---------- night by torchlight: a pool of warm light on the board, the rest of the page in the dark ---------- */
 body.is-night .cx-table { --ink: #2b2f3a; --ink-2: #5d6170; --pen-blue: #3c4fb8; --pen-red: #c8452e; }
-.cx-lit {
+.torch-lit {
   position: absolute; z-index: 0; pointer-events: none; opacity: 0;
   background-color: #f3eee2;
   background-image: radial-gradient(closest-side, rgba(255, 210, 130, 0.42), rgba(255, 214, 140, 0.12) 70%, rgba(255, 214, 140, 0) 100%), var(--paper-img, none);
@@ -287,20 +287,37 @@ body.is-night .cx-table { --ink: #2b2f3a; --ink-2: #5d6170; --pen-blue: #3c4fb8;
   -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
   mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
 }
-.cx-shade { position: fixed; left: -40px; top: -40px; width: calc(100vw + 80px); height: calc(100vh + 80px); z-index: 3; pointer-events: none; overflow: visible; }
-.cx-side { z-index: 4; }
+.torch-shade { position: fixed; left: -40px; top: -40px; width: calc(100vw + 80px); height: calc(100vh + 80px); z-index: 3; pointer-events: none; overflow: visible; }
 /* the hand holding the torch is never quite still */
-body.is-torch .cx-lit, body.is-torch .cx-shade { animation: cx-sway 7s ease-in-out infinite; }
-@keyframes cx-sway { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(5px, -3px); } 50% { transform: translate(-2px, 4px); } 75% { transform: translate(-5px, -1px); } }
-@media (prefers-reduced-motion: reduce) { body.is-torch .cx-lit, body.is-torch .cx-shade { animation: none; } }
+body.is-torch .torch-lit, body.is-torch .torch-shade { animation: torch-sway 7s ease-in-out infinite; }
+@keyframes torch-sway { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(5px, -3px); } 50% { transform: translate(-2px, 4px); } 75% { transform: translate(-5px, -1px); } }
+@media (prefers-reduced-motion: reduce) { body.is-torch .torch-lit, body.is-torch .torch-shade { animation: none; } }
 
-/* ---------- the volume slingshot ---------- */
-.cx-sling { max-width: 320px; margin: -4px 0 0; border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
-.cx-sling__svg { display: block; width: 100%; height: auto; overflow: visible; }
-.cx-sling__grab { cursor: grab; }
-.cx-sling.is-pulling .cx-sling__grab { cursor: grabbing; }
-.cx-sling__lab { font: 400 18px var(--hand); }
-.cx-sling__pct { font: 700 18px var(--hand); }
-body.is-night .cx-status { text-shadow: 0 1px 4px rgba(6, 9, 20, 0.85); }
-.cx-sling__flag { transition: opacity 0.3s; }
-.cx-sling.is-muted .cx-sling__flag { opacity: 0.4; }
+/* ---------- the slingshot (sling.js) ---------- */
+.sl { max-width: 320px; margin: -4px 0 0; border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.sl__svg { display: block; width: 100%; height: auto; overflow: visible; }
+.sl__grab { cursor: grab; }
+.sl.is-pulling .sl__grab { cursor: grabbing; }
+.sl.is-broken .sl__grab { cursor: not-allowed; }
+.sl__lab { font: 400 18px var(--hand); }
+.sl__pct { font: 700 18px var(--hand); }
+.sl__flag { transition: opacity 0.3s; }
+.sl.is-muted .sl__flag { opacity: 0.4; }
+.sl.is-burnt .sl__wood { filter: brightness(0.25) saturate(0.4); transition: filter 0.4s; }
+/* everything that flies between the slingshot and the page */
+.sl-fx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 30; pointer-events: none; overflow: visible; }
+.sl-word { font: 700 26px var(--sketch, var(--hand)); paint-order: stroke; stroke: #fbf8ef; stroke-width: 5px; stroke-linejoin: round; }
+.sl-word--small { font-size: 20px; }
+.sl-bolt { filter: drop-shadow(0 0 6px rgba(255, 220, 90, 0.9)); }
+/* the sign a creature holds up: tap me to hear the beach */
+.sl-tapme {
+  position: absolute; z-index: 35; transform-origin: 50% 100%; translate: -50% -100%; rotate: -4deg;
+  padding: 0 0 26px; border: 0; background: none; cursor: pointer; font: 700 18px/1.15 var(--hand); color: #2b2f3a;
+}
+.sl-tapme span { display: block; max-width: 170px; padding: 8px 12px; background: #fff6c9; border: 2.5px solid #2b2f3a; border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px; box-shadow: 3px 4px 0 rgba(43, 47, 58, 0.25); }
+.sl-tapme::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 4px; height: 28px; margin-left: -2px; background: #8a5a2b; border-radius: 2px; }
+.sl-tapme:hover span { background: #ffeea0; }
+@media (prefers-reduced-motion: no-preference) { .sl-tapme span { animation: tapme-bob 1.6s ease-in-out infinite; } }
+@keyframes tapme-bob { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(3deg) translateY(-3px); } }
+/* the panel stays above the dark, so it can be read and used by torchlight */
+.cx-side { z-index: 4; }
