@@ -161,6 +161,8 @@ the address to see one on any day.
 - The real weather: if it is raining, snowing, foggy or windy where you are, it is on the page too (and you hear the rain). The rough place comes from the network on the server side and is rounded to half a degree before the weather service is asked; the page never sees it and nothing is stored. Add `?weather=rain` (snow, storm, fog, wind) to see one.
 - Works offline: the game can be installed like an app and plays without a connection against the computer, two on one screen, or the puzzles (online play still needs the internet).
 - Without a mouse: the slingshot takes the arrow keys for the volume and Enter to throw at the next creature, and says what happened for screen readers.
+- Teach me: a computer level for learning. The computer plays gently; on your turn a creature suggests a move and says why (it takes something, it gives check, it gets a piece out of danger, it develops a sleepy piece, it claims the centre), and you are warned when a creature you just moved can be taken for free.
+- The diary: after every game the creatures write down what happened (who opened, the first to fall, the biggest loss, castles, promotions, checks and how it ended). The last twelve pages are kept on your device; "Read the diary" opens them.
 - At night you play by torchlight: the room goes dark, a big torch clicks on in the corner and lights a warm pool of paper under the board, while the rest of the page stays in the dark.
 - Read the commentary on a sticky note, which notices forks, checks, hanging pieces and castling.
 - Play with the keyboard: Tab to the board, arrow keys to move around, Enter to pick up and put down.

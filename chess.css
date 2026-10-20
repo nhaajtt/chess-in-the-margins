@@ -343,3 +343,11 @@ body.is-torch .torch-lit, body.is-torch .torch-shade { animation: torch-sway 7s 
 .cx-book__grid li.is-locked { background: transparent; border-style: dashed; }
 .cx-book__grid li.is-locked svg { filter: grayscale(1) brightness(0.35); opacity: 0.35; }
 .cx-book__grid li.is-locked b { color: #8a8f9c; }
+/* the diary: a lined notebook page */
+.cx-diary { width: min(620px, 94vw); background-image: repeating-linear-gradient(transparent 0 33px, rgba(60, 79, 184, 0.22) 33px 34px), var(--paper-img, none); background-size: auto, 1400px auto; }
+.cx-diary__date { margin: 0; color: #c8452e; font-size: 16px; }
+.cx-diary h2 { margin: 2px 0 10px; }
+.cx-diary__lines { margin: 0; padding-left: 22px; display: grid; gap: 2px; font-size: 19px; line-height: 34px; }
+.cx-diary__by { margin: 10px 0 14px; text-align: right; color: #5d6170; font-style: italic; }
+.cx-diary__nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+.cx-diary__nav button[disabled] { opacity: 0.4; }

@@ -650,6 +650,7 @@
     playMove(m);
     pace();
     if (mode === "puzzle") { puzzleAnswer(m); return; }
+    warnAfter(m);
     if (!over && mode === "cpu" && game.turn !== human) computer();
   }
 
@@ -1225,6 +1226,7 @@
     $("resign").disabled = true;
     $("card").hidden = false;
     stickersForEnd(st);
+    writeDiary(st);
   }
 
   /* ---------- the computer ---------- */
@@ -1235,11 +1237,12 @@
     statusLine(game.status());
     await wait(anim ? 650 : 50);
     const t = performance.now();
-    const m = mercyMove(think(game, level));
+    const m = mercyMove(think(game, level === "teach" ? "easy" : level));
     // never answer instantly; a creature needs a moment
     await wait(Math.max(0, 350 - (performance.now() - t)));
     busy = false;
     if (m && !over) await playMove(m);
+    if (level === "teach" && !over) { if (motion && motion.promise) await motion.promise; coach(); }
   }
 
   /* ---------- clock: each second the old number is crossed out and the new one written ---------- */
@@ -3694,6 +3697,7 @@
     freshGame(ready);
     $("card").hidden = true;
     if (mode === "cpu" && game.turn !== human) setTimeout(computer, ready * 1000);
+    else if (mode === "cpu" && level === "teach") setTimeout(coach, (ready + 0.6) * 1000);
   }
 
   $("new").addEventListener("click", () => {
@@ -4232,6 +4236,115 @@
 
   // a copy of the game is kept on the device, so it opens and plays without a connection (sw.js)
   if ("serviceWorker" in navigator && location.protocol === "https:") addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => { /* fine without */ }));
+
+
+  /* ---------- "teach me": the computer plays gently, and a creature suggests a move and says why ---------- */
+  const sqName = (sq) => name(sq);
+  const creatureOf = (p) => CREATURE[p & 7][colorOf(p)];
+  function whyMove(m) {
+    game.make(m);
+    const check = game.inCheck(), mate = check && !game.moves().length;
+    game.unmake(m);
+    if (mate) return "it's checkmate!";
+    const why = [];
+    if (m.captured) why.push(`it takes their ${creatureOf(m.captured)} (a ${KIND[m.captured & 7]})`);
+    if (m.promo) why.push("the pawn grows into a queen");
+    if (check) why.push("it puts their king in check");
+    if (m.flags & (E.F_KCASTLE | E.F_QCASTLE)) why.push("castling tucks your king away safe and wakes up a rook");
+    if (!why.length && game.attackers(m.from, human ^ 1).length) why.push(`your ${creatureOf(m.piece)} was in danger on ${sqName(m.from)}, and this gets it out of trouble`);
+    const kind = m.piece & 7, back = human ? 7 : 0;
+    if ((kind === 2 || kind === 3) && (m.from >> 4) === back) why.push("it brings a sleepy piece out to join the game");
+    if (kind === 1 && [0x33, 0x34, 0x43, 0x44].includes(m.to)) why.push("a pawn in the middle claims the centre of the board");
+    if (!why.length) why.push("it makes your position a little stronger");
+    return why.slice(0, 2).join(", and ");
+  }
+  function coach() {
+    if (mode !== "cpu" || level !== "teach" || over || game.turn !== human) return;
+    const best = think(game, "normal");
+    if (!best) return;
+    statusEl.textContent = `Tip: try the ${creatureOf(best.piece)} from ${sqName(best.from)} to ${sqName(best.to)}: ${whyMove(best)}. (Any move is fine; it's only a tip.)`;
+    if (anim && els.get(best.from)) { quip(best.from, pick(["psst. me!", "try me!", "I have an idea"]), 1.8); G.fromTo(els.get(best.from).__act, { y: 0 }, { y: -14, duration: 0.18, yoyo: true, repeat: 3 }); }
+  }
+  // after your move: a gentle warning if what just moved can now be taken for free
+  function warnAfter(m) {
+    if (mode !== "cpu" || level !== "teach" || over) return;
+    const piece = m.promo || m.piece;
+    if ((piece & 7) === 1 || (piece & 7) === 6) return;
+    if (game.attackers(m.to, human ^ 1).length && !game.attackers(m.to, human).length) note(`careful: your ${creatureOf(piece)} on ${sqName(m.to)} can be taken, and nobody is guarding it`);
+  }
+
+  /* ---------- the diary: after each game the creatures write down what happened ---------- */
+  const DIARY_KEY = "chess-diaries";
+  const teamName = (side) => TEAM[side];
+  function writeDiary(st) {
+    if (mode === "puzzle") return;
+    const lines = [], played = game.played;
+    const moveNo = (i) => Math.floor(i / 2) + 1;
+    const who2 = (p) => `the ${creatureOf(p)}`;
+    const against = mode === "cpu" ? `against the computer (${level === "teach" ? "teach me" : level})` : mode === "online" ? "against a friend, online" : "between two friends on one screen";
+    if (played[0]) lines.push(`The ${teamName(colorOf(played[0].move.piece))} team began: ${who2(played[0].move.piece)} opened with ${played[0].san}.`);
+    const caps = played.map((x, i) => ({ ...x, i })).filter((x) => x.move.captured);
+    if (caps[0]) lines.push(`The first to fall was ${who2(caps[0].move.captured)}, taken by ${who2(caps[0].move.piece)} on ${sqName(caps[0].move.to)} (move ${moveNo(caps[0].i)}).`);
+    const big = caps.slice().sort((a, b) => VALUE[b.move.captured & 7] - VALUE[a.move.captured & 7])[0];
+    if (big && big !== caps[0] && VALUE[big.move.captured & 7] >= 500) lines.push(`The biggest loss: the ${teamName(colorOf(big.move.captured))} team's ${creatureOf(big.move.captured)}, on move ${moveNo(big.i)}.`);
+    played.forEach((x, i) => { if (x.move.flags & (E.F_KCASTLE | E.F_QCASTLE)) lines.push(`The ${teamName(colorOf(x.move.piece))} king castled on move ${moveNo(i)} and felt much safer.`); });
+    played.forEach((x, i) => { if (x.move.promo) lines.push(`On move ${moveNo(i)} ${who2(x.move.piece)} reached the far side and grew into ${who2(x.move.promo)}.`); });
+    for (const side of [0, 1]) {
+      const checks = played.filter((x) => colorOf(x.move.piece) === side && /[+#]/.test(x.san)).length;
+      if (checks >= 2) lines.push(`The ${teamName(side)} team gave check ${checks} times.`);
+    }
+    const last = played[played.length - 1];
+    if (st.reason === "checkmate" && last) lines.push(`On move ${moveNo(played.length - 1)}, ${who2(last.move.promo || last.move.piece)} on ${sqName(last.move.to)} checkmated the ${teamName(colorOf(last.move.piece) ^ 1)} king. The ${teamName(colorOf(last.move.piece))} team wins!`);
+    else if (st.reason === "resigned") lines.push(`The ${teamName(st.result === "1-0" ? 1 : 0)} team resigned. A white flag went up.`);
+    else if (st.reason === "time") lines.push(`The ${teamName(st.result === "1-0" ? 1 : 0)} team ran out of time.`);
+    else lines.push(`It ended in a draw (${st.reason}). Everyone had tea.`);
+    const n = Math.ceil(played.length / 2);
+    lines.push(`In all: ${n} move${n === 1 ? "" : "s"}, and ${caps.length} creature${caps.length === 1 ? "" : "s"} went to the tray.`);
+    const entry = { at: new Date().toISOString(), title: `A game ${against}`, lines, by: pick(["the owl", "the penguin", "the bee queen", "the wizard", "the acorn"]) };
+    let all = [];
+    try { all = JSON.parse(store.get(DIARY_KEY) || "[]"); } catch { all = []; }
+    all.unshift(entry);
+    store.set(DIARY_KEY, JSON.stringify(all.slice(0, 12)));
+    const btn = $("diary");
+    if (btn) { btn.hidden = false; if (anim) G.fromTo(btn, { rotation: -6, scale: 1.15 }, { rotation: 0, scale: 1, duration: 0.6, ease: "elastic.out(1, 0.4)" }); }
+    G && G.delayedCall(4, () => note(`${entry.by} wrote this game down in the diary`));
+  }
+  function openDiary(start = 0) {
+    let all = [];
+    try { all = JSON.parse(store.get(DIARY_KEY) || "[]"); } catch { all = []; }
+    if (!all.length) return;
+    let i = Math.max(0, Math.min(start, all.length - 1));
+    let d = $("diary-book");
+    if (!d) {
+      d = document.createElement("dialog");
+      d.id = "diary-book";
+      d.className = "cx-book cx-diary";
+      d.setAttribute("aria-labelledby", "diary-title");
+      document.body.append(d);
+      d.addEventListener("click", (e) => { if (e.target === d) d.close(); });
+    }
+    const paint = () => {
+      const e = all[i];
+      const day = new Date(e.at).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+      d.innerHTML = `<p class="cx-diary__date"></p><h2 id="diary-title"></h2><ol class="cx-diary__lines"></ol><p class="cx-diary__by"></p>
+        <p class="cx-diary__nav"><button class="cx-btn" type="button" data-go="1">older page</button><button class="cx-btn" type="button" data-go="-1">newer page</button><button class="cx-btn cx-btn--solid" type="button" data-close>Close</button></p>`;
+      d.querySelector(".cx-diary__date").textContent = `${day} · page ${all.length - i} of ${all.length}`;
+      d.querySelector("h2").textContent = e.title;
+      d.querySelector("ol").append(...e.lines.map((t) => Object.assign(document.createElement("li"), { textContent: t })));
+      d.querySelector(".cx-diary__by").textContent = `written in the margins by ${e.by}`;
+      d.querySelector('[data-go="1"]').disabled = i >= all.length - 1;
+      d.querySelector('[data-go="-1"]').disabled = i <= 0;
+      d.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => { i += Number(b.dataset.go); paint(); sfx("page"); }));
+      d.querySelector("[data-close]").addEventListener("click", () => d.close());
+    };
+    paint();
+    d.showModal();
+    sfx("page");
+  }
+  if ($("diary")) {
+    $("diary").addEventListener("click", () => openDiary(0));
+    try { if (JSON.parse(store.get(DIARY_KEY) || "[]").length) $("diary").hidden = false; } catch { /* nothing yet */ }
+  }
 
   /* ---------- the opening, once per visitor ---------- */
 
