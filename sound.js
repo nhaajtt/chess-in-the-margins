@@ -9,7 +9,8 @@
   "use strict";
   let ctx = null, out = null, bus = null;
   const BASE = root.SFX_BASE || "/assets/sfx/";
-  let on = false;
+  let on = false, vol = 0.7, master = null;
+  try { const v = parseFloat(localStorage.getItem("chess-volume")); if (v >= 0 && v <= 1) vol = v; } catch { /* private window */ }
   try { on = localStorage.getItem("chess-sound") === "on"; } catch { /* private window */ }
 
   function ready() {
@@ -27,7 +28,7 @@
       const dry = ctx.createGain(); dry.gain.value = 0.9;
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -20; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.2;
-      const master = ctx.createGain(); master.gain.value = 0.8;
+      master = ctx.createGain(); master.gain.value = 0.9 * vol;
       soft.connect(dry).connect(comp);
       soft.connect(room).connect(wet).connect(comp);
       comp.connect(master).connect(ctx.destination);
@@ -238,9 +239,10 @@
     "flap-soft", "gallop", "grass", "grass-hi", "gull", "hoot-far", "jump", "knock", "page", "paper", "peck", "pencil", "pinch", "poof",
     "pop", "popper", "punch", "rain", "rewind", "ribbit", "sandstep", "scrape", "shutter", "slap", "slide-down", "slide-up", "snore",
     "snort", "sparkle", "spell", "splash", "squeak", "squeak2", "squish", "star", "swish-wood", "swosh", "tea", "thud", "tiptoe", "trot",
-    "ufo", "v-acorn", "v-bee", "v-bird", "v-ghost", "v-mushroom", "v-owl", "v-penguin", "v-pony", "v-puff", "v-sand", "v-wizard",
+    "ufo", "blob-hop", "bloop", "v-acorn", "v-bee", "v-bird", "v-ghost", "v-mushroom", "v-owl", "v-penguin", "v-pony", "v-puff", "v-sand", "v-wizard",
     "v-zebra", "waddle", "wand", "whoosh", "yawn", "yay", "zap", "amb-day", "amb-night"];
   const buf = {};
+  const has = (n) => Boolean(buf[n]);
   function load() {
     FILES.forEach((n) => {
       fetch(BASE + n + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
@@ -252,7 +254,7 @@
   const LEVEL = { pencil: 0.45, erase: 0.3, paper: 0.35, page: 0.4, grass: 0.32, "grass-hi": 0.3, tiptoe: 0.35, sandstep: 0.4, waddle: 0.35,
     knock: 0.35, clop: 0.45, trot: 0.4, gallop: 0.4, buzz: 0.3, flap: 0.4, "flap-soft": 0.35, swosh: 0.35, whoosh: 0.35, scrape: 0.35,
     dizzy: 0.35, sparkle: 0.35, star: 0.3, ding: 0.4, pop: 0.45, jump: 0.35, boing: 0.4, thud: 0.45, gull: 0.18, "hoot-far": 0.16,
-    yay: 0.4, fanfare: 0.45, rain: 0.35, ufo: 0.35, crumble: 0.5, "amb-day": 0.16, "amb-night": 0.16 };
+    yay: 0.4, fanfare: 0.45, rain: 0.35, ufo: 0.35, crumble: 0.5, "blob-hop": 0.4, bloop: 0.45, "amb-day": 0.16, "amb-night": 0.16 };
   // play a recording: when (seconds from now), how loud, how fast (and so how high); a touch of random pitch so repeats differ
   function S(name, at = 0, vol = 1, rate = 1, from = 0, len = 0) {
     const b = buf[name];
@@ -277,7 +279,7 @@
   const voice = (kind, side, at = 0, vol = 1, rate = 1) => S("v-" + who(kind, side), at, vol, rate);
   // footsteps: tiny pitter-patter, hooves, crunching sand, flapping wings...
   const FEET = {
-    mushroom: () => S("tiptoe", 0, 0.9, 1.1), ghost: () => S("swosh", 0, 0.5, 0.75), pony: () => S("clop"), zebra: () => S("clop", 0, 1, 0.92),
+    mushroom: () => S("tiptoe", 0, 0.9, 1.1), ghost: () => S("blob-hop", 0, 0.8, R(0.95, 1.1)), pony: () => S("clop"), zebra: () => S("clop", 0, 1, 0.92),
     acorn: () => S("grass-hi"), wizard: () => S("grass", 0, 1, 1.05), sand: () => S("sandstep"), puff: () => S("swosh", 0, 0.6, 0.8),
     bee: () => S("buzz", 0, 0.8), bird: () => S("flap"), owl: () => S("grass", 0, 1.1, 0.85),
     penguin: () => { S("tiptoe", 0, 0.5, 0.8); return S("waddle", 0, 0.8, R(0.9, 1.1)); },
@@ -291,11 +293,11 @@
   const WINDUP = {
     acorn: () => S("swish-wood"), wizard: () => S("spell", 0, 0.7), bee: () => S("wand", 0, 0.7), pony: () => S("snort", 0, 0.7),
     zebra: () => S("snort", 0, 0.7, 0.9), owl: () => S("flap", 0, 1, 0.85), bird: () => S("flap"), penguin: () => S("slide-down", 0, 0.45),
-    sand: () => S("scrape", 0, 0.8, 0.8), ghost: () => S("whoosh", 0, 0.5, 0.7), puff: () => S("whoosh", 0, 0.5, 0.9), mushroom: () => S("whoosh"),
+    sand: () => S("scrape", 0, 0.8, 0.8), ghost: () => S("blob-hop", 0, 0.9, 0.9), puff: () => S("whoosh", 0, 0.5, 0.9), mushroom: () => S("whoosh"),
   };
   // the blow itself
   const BLOW = {
-    mushroom: () => S("bonk"), ghost: () => S("squish"),
+    mushroom: () => S("bonk"), ghost: () => { S("bloop", 0.1, 0.8); return S("squish"); },
     pony: () => { voice(2, 0, 0.12, 0.6); return S("punch"); }, zebra: () => { voice(2, 1, 0.12, 0.6); return S("punch"); },
     acorn: () => { S("knock", 0.09, 0.6, 1.2); return S("clack-wood"); }, wizard: () => S("zap"),
     sand: () => S("crumble"), puff: () => S("poof"),
@@ -305,6 +307,8 @@
   };
 
   const REAL = {
+    torch() { S("knock", 0.06, 0.4, 1.8); return S("shutter", 0, 0.5, 0.8); },
+    pebble() { S("sandstep", 0.03, 0.7, 1.2); return S("knock", 0, 0.7, 1.6); },
     select(kind = 1, side = 0) { return kind === 2 && Math.random() < 0.6 ? S("snort", 0, 0.8, side ? 0.92 : 1) : voice(kind, side); },
     deselect() { return S("paper", 0, 0.6); },
     move(kind = 1, side = 0) { const f = SETOFF[who(kind, side)]; return f ? f() : true; },
@@ -369,6 +373,17 @@
     scene() { return S("page", 0, 0.8); },
   };
   // the toy box has no recordings for these, so they borrow the nearest thing it has
+  // the slingshot's rubber band: a low pluck that drops as it springs back (power 0..1)
+  SYNTH.twang = (power = 0.5) => {
+    const t = T(), o = osc("triangle", 110 + power * 120, t, t + 0.4), g = ctx.createGain();
+    o.frequency.exponentialRampToValueAtTime(60 + power * 40, t + 0.35);
+    const l = osc("sine", 28, t, t + 0.4), lg = ctx.createGain(); lg.gain.value = 18; l.connect(lg).connect(o.frequency);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g).connect(out);
+    if (has("whoosh")) S("whoosh", 0.02, 0.4 + power * 0.5, 1.3 - power * 0.3);
+  };
+  SYNTH.pebble = () => SYNTH.tick();
+  SYNTH.torch = () => SYNTH.tick();
   SYNTH.move = (kind = 1) => { if (kind === 2) SYNTH.boing(); else if (kind === 4 || kind === 5) SYNTH.step(kind); };
   SYNTH.windup = () => SYNTH.whoosh();
   SYNTH.ouch = () => SYNTH.land();
@@ -441,6 +456,13 @@
         if (REAL[name] && REAL[name](...args)) return;
         if (SYNTH[name]) SYNTH[name](...args);
       } catch { /* a sound never breaks the game */ }
+    },
+    // how loud, 0..1 (remembered); 0 is as good as off
+    get volume() { return vol; },
+    setVolume(v) {
+      vol = Math.max(0, Math.min(1, v));
+      try { localStorage.setItem("chess-volume", String(vol)); } catch { /* fine */ }
+      if (master) master.gain.setTargetAtTime(0.9 * vol, ctx.currentTime, 0.05);
     },
     // the sound of the place: "day", "night", or null for silence
     ambience(mode) { ambMode = mode; if (on && ready()) ambience(mode); },

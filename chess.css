@@ -263,17 +263,44 @@ body.is-night {
 @keyframes cx-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.6); } 50% { opacity: 1; transform: scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .cx-sky i { animation: none; opacity: 0.8; } }
 /* live pen lines (the board, the doodles still moving) switch to chalk; the creatures keep their crayons */
-body.is-night svg:not(.cr) [stroke="#2b2f3a"] { stroke: #ecebf8; }
-body.is-night svg:not(.cr) [stroke="#3c4fb8"] { stroke: #a9bbff; }
-body.is-night svg:not(.cr) [stroke="#4a4d57"] { stroke: #d8dae6; }
-body.is-night svg:not(.cr) [stroke="#5d6170"] { stroke: #cdd1e2; }
-body.is-night svg:not(.cr) [stroke="#3a2a1a"] { stroke: #f0e2c8; }
-body.is-night svg text[fill="#3c4fb8"] { fill: #a9bbff; }
-body.is-night svg text[fill="#c8452e"] { fill: #ffab96; }
-body.is-night svg text[fill="#2b2f3a"], body.is-night svg text[fill="#5d6170"] { fill: #ecebf8; }
+body.is-night svg:not(.cr):not(.cx-table svg) [stroke="#2b2f3a"] { stroke: #ecebf8; }
+body.is-night svg:not(.cr):not(.cx-table svg) [stroke="#3c4fb8"] { stroke: #a9bbff; }
+body.is-night svg:not(.cr):not(.cx-table svg) [stroke="#4a4d57"] { stroke: #d8dae6; }
+body.is-night svg:not(.cr):not(.cx-table svg) [stroke="#5d6170"] { stroke: #cdd1e2; }
+body.is-night svg:not(.cr):not(.cx-table svg) [stroke="#3a2a1a"] { stroke: #f0e2c8; }
+body.is-night svg:not(.cx-table svg) text[fill="#3c4fb8"] { fill: #a9bbff; }
+body.is-night svg:not(.cx-table svg) text[fill="#c8452e"] { fill: #ffab96; }
+body.is-night svg:not(.cx-table svg) text[fill="#2b2f3a"], body.is-night svg:not(.cx-table svg) text[fill="#5d6170"] { fill: #ecebf8; }
 /* paper things stay paper: sticky notes, cards and buttons on paper keep dark ink */
 body.is-night .cx-note, body.is-night .cx-note--resign, body.is-night .cx-emotes button, body.is-night .cx-promo__row button, body.is-night .cx-photo { color: #2b2f3a; }
 body.is-night .cx-moves .w { color: #f6b26b; }
 body.is-night .cx-field input, body.is-night .cx-join input { background: rgba(255, 255, 255, 0.08); }
-body.is-night .cx-yourmove { color: #ffe08a; text-shadow: 0 0 12px rgba(255, 220, 120, 0.6); }
 body.is-night .cx-btn--solid { color: #2b2f3a; }
+
+/* ---------- night by torchlight: a pool of warm light on the board, the rest of the page in the dark ---------- */
+body.is-night .cx-table { --ink: #2b2f3a; --ink-2: #5d6170; --pen-blue: #3c4fb8; --pen-red: #c8452e; }
+.cx-lit {
+  position: absolute; z-index: 0; pointer-events: none; opacity: 0;
+  background-color: #f3eee2;
+  background-image: radial-gradient(closest-side, rgba(255, 210, 130, 0.42), rgba(255, 214, 140, 0.12) 70%, rgba(255, 214, 140, 0) 100%), var(--paper-img, none);
+  background-size: 100% 100%, 1400px auto;
+  -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+}
+.cx-shade { position: fixed; left: -40px; top: -40px; width: calc(100vw + 80px); height: calc(100vh + 80px); z-index: 3; pointer-events: none; overflow: visible; }
+.cx-side { z-index: 4; }
+/* the hand holding the torch is never quite still */
+body.is-torch .cx-lit, body.is-torch .cx-shade { animation: cx-sway 7s ease-in-out infinite; }
+@keyframes cx-sway { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(5px, -3px); } 50% { transform: translate(-2px, 4px); } 75% { transform: translate(-5px, -1px); } }
+@media (prefers-reduced-motion: reduce) { body.is-torch .cx-lit, body.is-torch .cx-shade { animation: none; } }
+
+/* ---------- the volume slingshot ---------- */
+.cx-sling { max-width: 320px; margin: -4px 0 0; border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.cx-sling__svg { display: block; width: 100%; height: auto; overflow: visible; }
+.cx-sling__grab { cursor: grab; }
+.cx-sling.is-pulling .cx-sling__grab { cursor: grabbing; }
+.cx-sling__lab { font: 400 18px var(--hand); }
+.cx-sling__pct { font: 700 18px var(--hand); }
+body.is-night .cx-status { text-shadow: 0 1px 4px rgba(6, 9, 20, 0.85); }
+.cx-sling__flag { transition: opacity 0.3s; }
+.cx-sling.is-muted .cx-sling__flag { opacity: 0.4; }

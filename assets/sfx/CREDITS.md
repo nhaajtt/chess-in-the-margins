@@ -22,7 +22,6 @@ Every recording here comes from [Freesound](https://freesound.org) and is releas
 | flap | [Wing Flap 1.wav](https://freesound.org/s/389634/) | _stubb |
 | flap-soft | [Light Wing Flap](https://freesound.org/s/561009/) | TurboFool |
 | gallop | [Horse Gallop - Loopable.mp3](https://freesound.org/s/197212/) | HebronTheatre |
-| v-ghost | [Ghost Singing / La la la](https://freesound.org/s/420679/) | SypherZent |
 | grass, grass-hi | [Footsteps_Grass_Single_03.wav](https://freesound.org/s/488074/) | BenDrain |
 | gull | [Seagull single call](https://freesound.org/s/263786/) | steaq |
 | jump | [Public Domain Jump Sound](https://freesound.org/s/331381/) | qubodup |
@@ -75,3 +74,6 @@ Every recording here comes from [Freesound](https://freesound.org) and is releas
 | yay | [yay.wav](https://freesound.org/s/353923/) | dr_skitz |
 | zap | [ELECTRIC_ZAP_001.wav](https://freesound.org/s/136542/) | JoelAudio |
 | v-zebra | [Zebras - Grant's Zebra Braying](https://freesound.org/s/850661/) | TheKingOfGeeks360 |
+| v-ghost | [Cartoon - Smoochy Squeak + Plop](https://freesound.org/s/444494/) | Breviceps |
+| blob-hop | [Cute Bounce Jump.wav](https://freesound.org/s/618961/) | Hemplock |
+| bloop | [waterbloop.mp3](https://freesound.org/s/611642/) | kstargio |
