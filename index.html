@@ -16,6 +16,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#f3eee2">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cabin+Sketch:wght@400;700&family=Kalam:wght@300;400;700&family=Patrick+Hand&display=swap">
@@ -76,6 +78,7 @@
       <button class="cx-btn" id="flip" type="button">Flip</button>
       <button class="cx-btn" id="again" type="button">Watch the opening</button>
       <button class="cx-btn" id="sound" type="button" aria-pressed="false">sound: off</button>
+      <button class="cx-btn" id="stickers-btn" type="button">stickers</button>
     </p>
     <div id="sling"></div>
     <button class="cx-note cx-note--resign" id="resign" type="button">resign?</button>
@@ -88,6 +91,7 @@
       <label><input type="radio" name="mode" value="cpu" checked> me against the computer</label>
       <label><input type="radio" name="mode" value="friend"> two of us on this screen</label>
       <label><input type="radio" name="mode" value="online"> a friend, online</label>
+      <label><input type="radio" name="mode" value="puzzle"> today's puzzle: mate in two</label>
     </fieldset>
     <fieldset class="cx-opts" id="cpu-opts">
       <legend>The computer</legend>
@@ -141,8 +145,8 @@
 
 <footer class="cx-foot"><p>Built by nhaajt. The rules and the opponent are written from scratch; the creatures were drawn for this page. <a href="https://lab.nhaajt.com">More at the lab</a></p></footer>
 
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js" integrity="sha384-1NLkwxMO2sOqcq7rQkFBhIAUJtbt8ziLxhVKVgKfFGMEU8pF+GEq5LVogviveup6" crossorigin="anonymous" defer></script>
+<script src="/vendor/gsap.min.js" defer></script>
+<script src="/vendor/rough.js" defer></script>
 <script src="/paper.js"></script>
 <script src="/engine.js" defer></script>
 <script src="/creatures.js" defer></script>
@@ -150,6 +154,8 @@
 <script src="/sound.js" defer></script>
 <script src="/torch.js" defer></script>
 <script src="/sling.js" defer></script>
+<script src="/weather.js" defer></script>
+<script src="/puzzles.js" defer></script>
 <script src="/game.js" defer></script>
 </body>
 </html>

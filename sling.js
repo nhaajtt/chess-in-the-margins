@@ -77,6 +77,16 @@
       </g>
       <rect class="sl__grab" x="0" y="20" width="92" height="96" fill="transparent"/>
     </svg>`;
+    const help = document.createElement("span");
+    help.className = "sl-hidden";
+    help.id = `sl-help-${Math.random().toString(36).slice(2, 7)}`;
+    help.textContent = "Arrow keys set the volume." + (anim ? " On a wide screen, Enter throws at the next creature." : "");
+    const live = document.createElement("span");
+    live.className = "sl-hidden";
+    live.setAttribute("aria-live", "polite");
+    holder.append(help, live);
+    holder.setAttribute("aria-describedby", help.id);
+    const tell = (t) => { live.textContent = ""; setTimeout(() => { live.textContent = t; }, 50); };
     const svg = holder.firstElementChild, q = (s) => svg.querySelector(s);
     const ammoG = q(".sl__ammo"), back = q(".sl__band--back"), front = q(".sl__band--front"), frame = q(".sl__frame"), wood = q(".sl__wood");
     const trail = q(".sl__trail"), mark = q(".sl__mark"), flag = q(".sl__flag"), pct = q(".sl__pct"), grab = q(".sl__grab");
@@ -197,8 +207,10 @@
       }
       const victim = (o.targets ? o.targets() : []).map((t) => ({ t, r: t.rect() })).filter(({ r }) => r && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8)
         .sort((a, b) => Math.hypot(a.r.left + a.r.width / 2 - x, a.r.top + a.r.height / 2 - y) - Math.hypot(b.r.left + b.r.width / 2 - x, b.r.top + b.r.height / 2 - y))[0];
-      if (!victim) return;
+      if (!victim) { tell("Missed. It landed on the paper."); return; }
       const v = victim.t;
+      tell(`Hit the ${v.name || "creature"}${name === "duck" ? " with a rubber duck" : ""}. It is cross.`);
+      if (o.onHit) o.onHit(v, name);
       sfx("ouch", v.kind, v.side);
       wordAt(x, victim.r.top - 6, name === "duck" ? "QUACK?!" : name === "balloon" ? "SPLOSH!" : pick(OUCH), v.side ? "#3c4fb8" : "#e8432e", G);
       if (v.c) { CR().setFace(v.c, "hurt", v.c.spec.face.beak ? "open" : "frown"); }
@@ -225,7 +237,12 @@
         const order = ["stomp", "gang", "zap"];
         for (let k = 0; k < 3; k++) {
           const kind = order[(revengeNo + k) % 3];
-          if (REVENGE[kind](side)) { revengeNo = (revengeNo + k + 1) % 3; return; }
+          if (REVENGE[kind](side)) {
+            revengeNo = (revengeNo + k + 1) % 3;
+            tell(kind === "stomp" ? "That was too many. A big one is stomping on the slingshot." : kind === "gang" ? "That was too many. The whole team is piling onto the slingshot." : "That was too many. The wizard zaps the slingshot to a crisp.");
+            if (o.onRevenge) o.onRevenge(kind);
+            return;
+          }
         }
         avenging = false;
       };
@@ -420,7 +437,18 @@
     grab.addEventListener("pointerup", release);
     grab.addEventListener("pointercancel", release);
     // keys: a gentler shot along the ruler, a tenth at a time
+    // Enter or Space: a throw at the next creature in line (wide screens), for anyone without a mouse
+    let nextTarget = 0;
     holder.addEventListener("keydown", (e) => {
+      if ((e.key === "Enter" || e.key === " ") && world() && !broken && !inFlight) {
+        const list = (o.targets ? o.targets() : []).filter((t) => { const r = t.rect(); return r && r.bottom > 0 && r.top < innerHeight; });
+        if (!list.length) return;
+        e.preventDefault();
+        const t = list[nextTarget++ % list.length], r = t.rect(), [sx, sy] = toView(REST.x, REST.y);
+        const tx = r.left + r.width / 2, ty = r.top + r.height * 0.45;
+        shootWorld({ sx, sy, tx, ty, d: Math.hypot(tx - sx, ty - sy) });
+        return;
+      }
       const v = vol();
       const to = { ArrowRight: v + 0.1, ArrowUp: v + 0.1, ArrowLeft: v - 0.1, ArrowDown: v - 0.1, Home: 0, End: 1 }[e.key];
       if (to === undefined) return;

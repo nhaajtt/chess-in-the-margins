@@ -246,7 +246,7 @@
   function load() {
     FILES.forEach((n) => {
       fetch(BASE + n + ".mp3?v=" + VER).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
-        .then((b) => ctx.decodeAudioData(b)).then((d) => { buf[n] = d; if (n.startsWith("amb-")) ambience(); })
+        .then((b) => ctx.decodeAudioData(b)).then((d) => { buf[n] = d; if (n.startsWith("amb-")) ambience(); if (n === "rain") rainy(); })
         .catch(() => { /* the toy box covers for it */ });
     });
   }
@@ -442,7 +442,39 @@
     };
     callTimer = setTimeout(call, R(5000, 15000));
   }
-  document.addEventListener("visibilitychange", () => ambience());
+  document.addEventListener("visibilitychange", () => { ambience(); rainy(); });
+
+  /* ---------- the real weather: rain on the paper when it is raining outside ---------- */
+  let rainMode = null, rainNow = null, rainTimer = 0;
+  function rainy(mode = rainMode) {
+    rainMode = mode;
+    const want = on && ctx && !document.hidden && (mode === "rain" || mode === "storm" || mode === "drizzle") && buf.rain;
+    if (rainNow && !want) {
+      const old = rainNow;
+      rainNow = null;
+      clearTimeout(rainTimer);
+      old.g.gain.setTargetAtTime(0, ctx.currentTime, 0.5);
+      old.srcs.forEach((x) => { try { x.stop(ctx.currentTime + 2.5); } catch { /* already stopped */ } });
+    }
+    if (!want || rainNow) return;
+    const b = buf.rain, g = ctx.createGain(), X = 1.5;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(mode === "storm" ? 0.3 : mode === "drizzle" ? 0.12 : 0.2, ctx.currentTime + 3);
+    g.connect(bus);
+    const me = { g, srcs: [] };
+    rainNow = me;
+    const pass = () => {
+      if (rainNow !== me) return;
+      const t = ctx.currentTime + 0.05, src = ctx.createBufferSource(), pg = ctx.createGain();
+      src.buffer = b;
+      pg.gain.setValueAtTime(0, t); pg.gain.linearRampToValueAtTime(1, t + X);
+      pg.gain.setValueAtTime(1, t + b.duration - X); pg.gain.linearRampToValueAtTime(0, t + b.duration);
+      src.connect(pg).connect(g); src.start(t); src.stop(t + b.duration + 0.05);
+      me.srcs = me.srcs.slice(-1).concat(src);
+      rainTimer = setTimeout(pass, (b.duration - X) * 1000);
+    };
+    pass();
+  }
 
   /* ---------- the trombone, for losing ---------- */
   function trombone(f, at, dur, vol = 0.1, sag = 0) {
@@ -462,8 +494,8 @@
     set(v) {
       on = Boolean(v);
       try { localStorage.setItem("chess-sound", on ? "on" : "off"); } catch { /* fine */ }
-      if (on) { ready(); if (!REAL.select(5, 0)) SYNTH.select(5, 0); ambience(); }
-      else if (ctx) { ambience(null); ctx.suspend(); }
+      if (on) { ready(); if (!REAL.select(5, 0)) SYNTH.select(5, 0); ambience(); rainy(); }
+      else if (ctx) { ambience(null); rainy(); ctx.suspend(); }
     },
     play(name, ...args) {
       if (!ready()) return;
@@ -482,6 +514,8 @@
       try { localStorage.setItem("chess-volume", String(vol)); } catch { /* fine */ }
       if (master) master.gain.setTargetAtTime(0.9 * vol, ctx.currentTime, 0.05);
     },
+    // the weather outside: rain, storm or drizzle adds rain on the paper
+    weather(sky) { rainMode = sky; if (on && ready()) rainy(sky); },
     // the sound of the place: "day", "night", or null for silence
     ambience(mode) { ambMode = mode; if (on && ready()) ambience(mode); },
   };

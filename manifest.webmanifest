@@ -1,0 +1,15 @@
+{
+  "name": "Chess in the margins",
+  "short_name": "Chess",
+  "description": "Chess drawn in ballpoint on a sheet of paper, where every piece is a creature and captures get personal.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3eee2",
+  "theme_color": "#f3eee2",
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

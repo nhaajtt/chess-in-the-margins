@@ -649,6 +649,7 @@
     selected = -1; legal = [];
     playMove(m);
     pace();
+    if (mode === "puzzle") { puzzleAnswer(m); return; }
     if (!over && mode === "cpu" && game.turn !== human) computer();
   }
 
@@ -1167,6 +1168,8 @@
   }
 
   function finish(st) {
+    // in a puzzle only a checkmate finishes it; anything else is put back by the puzzle itself
+    if (mode === "puzzle" && st.reason !== "checkmate") { over = null; return; }
     over = st;
     if (st.reason === "checkmate" || st.reason === "resigned" || st.reason === "time") {
       const winner = st.result === "1-0" ? 0 : 1;
@@ -1221,6 +1224,7 @@
     say(text);
     $("resign").disabled = true;
     $("card").hidden = false;
+    stickersForEnd(st);
   }
 
   /* ---------- the computer ---------- */
@@ -1260,8 +1264,8 @@
   }
   function startClock() {
     stopClock();
-    $("clocks").hidden = !minutes;
-    if (!minutes) return;
+    $("clocks").hidden = !minutes || mode === "puzzle";
+    if (!minutes || mode === "puzzle") return;
     left = [minutes * 60000, minutes * 60000];
     shown = ["", ""];
     $("clock-0").replaceChildren(); $("clock-1").replaceChildren();
@@ -3061,6 +3065,7 @@
     lastMoveAt = stamp(); boredDone = false;
     picks.sq = -1; picks.n = 0;
     if (m.captured) store.set("chess-grudge", JSON.stringify({ hunter: m.promo || m.piece, victim: m.captured }));
+    stickersForMove(m);
     if (m.promo) { const k = `chess-veterans-${colorOf(m.piece)}`; store.set(k, String(Math.min(8, Number(store.get(k) || 0) + 1))); }
   }
   // once a move has played out: the team's tune, and beards in a very long game
@@ -3551,6 +3556,7 @@
     const c = el.__c;
     if (rec.n >= 5) {
       rec.n = 0;
+      award("cross");
       el.classList.add("is-cross");
       CR.setFace(c, "hurt", beak(c) ? "open" : "frown");
       sfx("hit", 1, colorOf(el.__p));
@@ -3655,7 +3661,8 @@
     game = new Game();
     over = null; selected = -1; legal = []; lastMove = null; firstCapture = true; busy = false;
     if (mode !== "online") human = mode === "cpu" && $("play-purple").checked ? 1 : 0;
-    flipped = mode === "cpu" || mode === "online" ? human === 1 : flipped;
+    if (mode === "puzzle") { puz = pickPuzzle(); puzStep = 0; puzMisses = 0; if (puz) { game = new Game(puz.fen); human = game.turn; } }
+    flipped = mode === "cpu" || mode === "online" || mode === "puzzle" ? human === 1 : flipped;
     spinNow = 0;
     setBoardTransform();
     $("tray-0").replaceChildren(); $("tray-1").replaceChildren();
@@ -3683,6 +3690,7 @@
     note(TH.note || (nightNow ? pick(["it's late. the creatures are sleepy", "a night game! the fireflies are watching"]) : "every piece is a creature"));
     startClock();
     statusLine(game.status());
+    if (mode === "puzzle") puzzleIntro();
     freshGame(ready);
     $("card").hidden = true;
     if (mode === "cpu" && game.turn !== human) setTimeout(computer, ready * 1000);
@@ -3690,7 +3698,7 @@
 
   $("new").addEventListener("click", () => {
     if (mode === "online") { if (!net.code) return; if (over) { net.send({ t: "rematch" }); onlineMsg("You asked for a rematch."); } else onlineMsg("Finish or resign this game first."); return; }
-    if (!busy) newGame();
+    if (!busy) { if (mode === "puzzle") puzExtra++; newGame(); }
   });
   const again = $("again");
   if (again) again.addEventListener("click", () => { if (busy || !anim) return; book().then(() => { drawDeco(); newGame(true); }); });
@@ -3712,6 +3720,7 @@
   });
   $("undo").addEventListener("click", () => {
     if (mode === "online") { onlineMsg("No take-backs online."); return; }
+    if (mode === "puzzle") { if (!busy) newGame(); return; }
     if (busy || !game.played.length) return;
     finishMotion();
     game.takeBack();
@@ -3989,7 +3998,7 @@
   const pieceActor = (sq, el) => {
     const s = () => spot(el.__at);
     return {
-      el, act: el.__act, c: el.__c, kind: el.__p & 7, side: colorOf(el.__p),
+      el, act: el.__act, c: el.__c, kind: el.__p & 7, side: colorOf(el.__p), name: CREATURE[el.__p & 7][colorOf(el.__p)],
       rect: () => el.getBoundingClientRect(),
       free: () => el.isConnected && !el.__away && el.__at === sq,
       toFrame: (vx, vy) => pageToLayer(vx, vy),
@@ -4009,6 +4018,8 @@
     targets: boardActors,
     actors: boardActors,
     quiet: quietNow,
+    onHit: () => { const n = Number(store.get("chess-sling-hits") || 0) + 1; store.set("chess-sling-hits", String(n)); if (n >= 10) award("aim"); },
+    onRevenge: (kind) => award(kind),
     calm: () => { if (outing && outing.hurry) outing.hurry(); },
     borrow(list, onEnd) {
       if (!quietNow()) return null;
@@ -4041,6 +4052,186 @@
     });
   }
 
+
+
+  /* ---------- today's puzzle: mate in two, a new one every day (puzzles.js, from the Lichess puzzle database) ---------- */
+  const PUZZLES = window.CHESS_PUZZLES || [];
+  const dayNo = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+  let puz = null, puzStep = 0, puzMisses = 0, puzExtra = 0;
+  const uciOf = (m) => name(m.from) + name(m.to) + (m.promo ? "nbrq"[[2, 3, 4, 5].indexOf(m.promo & 7)] : "");
+  const fromUci = (g, u) => g.moves().find((m) => uciOf(m) === u);
+  const pickPuzzle = () => (PUZZLES.length ? PUZZLES[(((dayNo() + puzExtra) % PUZZLES.length) + PUZZLES.length) % PUZZLES.length] : null);
+  // after the first move: whatever the other side answers, is there a mate in one? (other mates in two count too)
+  function forcesMate(g) {
+    const replies = g.moves();
+    if (!replies.length) return g.inCheck();
+    return replies.every((r) => {
+      g.make(r);
+      const ok = g.moves().some((x) => { g.make(x); const mate = g.inCheck() && !g.moves().length; g.unmake(x); return mate; });
+      g.unmake(r);
+      return ok;
+    });
+  }
+  function puzzleIntro() {
+    if (!puz) { statusEl.textContent = "No puzzle today, sorry."; return; }
+    const n = PUZZLES.indexOf(puz) + 1;
+    statusEl.textContent = `Puzzle ${n}: the ${TEAM[human]} team to move, and mate in two. (A puzzle from lichess.org; New game gives you another one.)`;
+    note(pick(["find the mate in two. the creatures are holding their breath", "two moves to checkmate. the owl believes in you", "today's puzzle! no peeking at the whale"]));
+  }
+  async function puzzleAnswer(m) {
+    if (!puz) return;
+    busy = true;
+    if (motion && motion.promise) await motion.promise;
+    await wait(anim ? 450 : 30);
+    busy = false;
+    const st = game.status();
+    if (st.reason === "checkmate") return;
+    if (puzStep === 0) {
+      const good = uciOf(m) === puz.line[0] || forcesMate(game);
+      if (!good) { await puzzleWrong(); return; }
+      puzStep = 2;
+      busy = true;
+      await wait(anim ? 350 : 30);
+      busy = false;
+      const reply = fromUci(game, puz.line[1]) || game.moves()[0];
+      if (reply) await playMove(reply);
+      if (motion && motion.promise) await motion.promise;
+      statusEl.textContent = "Good! Now the mate, in one move.";
+      note(pick(["ooh. they did not see that coming", "one more move. make it count", "the creatures are on the edge of their squares"]));
+    } else await puzzleWrong(true);
+  }
+  async function puzzleWrong(second) {
+    puzMisses++;
+    busy = true;
+    await wait(anim ? 500 : 30);
+    sfx("nudge");
+    note(pick(["not quite. the creatures put it back", "close! try another move", "hmm, no. the owl shakes its head"]));
+    game.takeBack();
+    over = null; selected = -1; legal = [];
+    lastMove = game.played.length ? game.played[game.played.length - 1].move : null;
+    rebuildTrays(); buildPieces(); drawMarks(); writeMoves(); labelSquares();
+    statusEl.textContent = second ? "That is not mate yet. Try again." : "Not that one. Try again.";
+    busy = false;
+    // after two misses, the creature that should move gives itself away
+    if (puzMisses >= 2 && anim) {
+      const m = fromUci(game, puz.line[puzStep]);
+      if (m && els.get(m.from)) { quip(m.from, pick(["psst. me!", "pick me!", "I have an idea"]), 1.8); G.fromTo(els.get(m.from).__act, { y: 0 }, { y: -18, duration: 0.18, yoyo: true, repeat: 3 }); }
+    }
+  }
+  function puzzleSolved() {
+    let solved = [];
+    try { solved = JSON.parse(store.get("chess-puzzles-solved") || "[]"); } catch { /* start again */ }
+    if (!solved.includes(puz.id)) solved.push(puz.id);
+    store.set("chess-puzzles-solved", JSON.stringify(solved));
+    statusEl.textContent = `Solved! Mate in two${puzMisses ? ` (after ${puzMisses} ${puzMisses === 1 ? "try" : "tries"})` : ", first time"}. New game gives you another puzzle.`;
+    award("puzzle");
+    if (solved.length >= 3) award("puzzle3");
+  }
+
+  /* ---------- stickers: little prizes for things done, kept on this device ---------- */
+  const STICKERS = [
+    { id: "win", piece: 6, name: "First win", how: "Beat the computer." },
+    { id: "hard", piece: 14, name: "Giant slayer", how: "Beat the computer on hard." },
+    { id: "knight", piece: 2, name: "Hoof finish", how: "Checkmate with a knight." },
+    { id: "flawless", piece: 5, name: "Not a scratch", how: "Win without losing a single creature." },
+    { id: "quick", piece: 13, name: "Speedy", how: "Checkmate in eight moves or fewer." },
+    { id: "promo", piece: 1, name: "All grown up", how: "Turn a pawn into something bigger." },
+    { id: "castle", piece: 4, name: "Moving house", how: "Castle." },
+    { id: "ep", piece: 9, name: "In passing", how: "Take a pawn en passant." },
+    { id: "tea", piece: 12, name: "Tea for two", how: "Finish a game in a draw." },
+    { id: "night", piece: 14, name: "Night owl", how: "Finish a game after dark." },
+    { id: "rain", piece: 10, name: "Rainy day", how: "Play while it is raining or snowing outside." },
+    { id: "puzzle", piece: 3, name: "Puzzler", how: "Solve a puzzle." },
+    { id: "puzzle3", piece: 11, name: "Puzzle fiend", how: "Solve three different puzzles." },
+    { id: "cross", piece: 1, name: "Poke!", how: "Poke a creature until it is cross." },
+    { id: "aim", piece: 3, name: "Sharpshooter", how: "Hit ten creatures with the slingshot." },
+    { id: "stomp", piece: 4, name: "Flattened", how: "Get your slingshot stomped." },
+    { id: "gang", piece: 9, name: "Outnumbered", how: "Get a whole team after you." },
+    { id: "zap", piece: 11, name: "Toast", how: "Get your slingshot zapped by the wizard." },
+  ];
+  let stickers = {};
+  try { stickers = JSON.parse(store.get("chess-stickers") || "{}") || {}; } catch { stickers = {}; }
+  const stickerBtn = $("stickers-btn");
+  const paintStickers = () => { if (stickerBtn) stickerBtn.textContent = `stickers: ${Object.keys(stickers).length} of ${STICKERS.length}`; };
+  paintStickers();
+  function award(id) {
+    const s = STICKERS.find((x) => x.id === id);
+    if (!s || stickers[id]) return;
+    stickers[id] = new Date().toISOString().slice(0, 10);
+    store.set("chess-stickers", JSON.stringify(stickers));
+    paintStickers();
+    // the new sticker is slapped onto the corner of the page for a moment
+    const t = document.createElement("div");
+    t.className = "cx-toast";
+    t.setAttribute("role", "status");
+    const art = mini(s.piece);
+    art.setAttribute("aria-hidden", "true");
+    const words = document.createElement("p");
+    words.innerHTML = `<b>New sticker!</b> ${s.name}`;
+    t.append(art, words);
+    document.body.append(t);
+    sfx("page");
+    if (anim) G.timeline({ onComplete: () => t.remove() })
+      .fromTo(t, { scale: 1.8, rotation: -14, opacity: 0 }, { scale: 1, rotation: -3, opacity: 1, duration: 0.35, ease: "back.out(2)" })
+      .to(t, { y: 20, opacity: 0, duration: 0.4, delay: 3.2 });
+    else setTimeout(() => t.remove(), 3800);
+  }
+  const mineMove = (m) => mode === "friend" || colorOf(m.piece) === human;
+  function stickersForMove(m) {
+    if (!mineMove(m)) return;
+    if (m.promo) award("promo");
+    if (m.flags & (E.F_KCASTLE | E.F_QCASTLE)) award("castle");
+    if (m.flags & E.F_EP) award("ep");
+    if (window.Weather && ["rain", "storm", "drizzle", "snow"].includes(window.Weather.sky)) award("rain");
+  }
+  function stickersForEnd(st) {
+    if (nightNow) award("night");
+    if (st.reason !== "checkmate") { if (st.result === "1/2-1/2") award("tea"); return; }
+    const winner = st.result === "1-0" ? 0 : 1, mine = mode === "friend" || winner === human;
+    if (mode === "puzzle") { puzzleSolved(); return; }
+    if (!mine) return;
+    if (mode === "cpu") { award("win"); if (level === "hard") award("hard"); }
+    if (lastMove && (lastMove.piece & 7) === 2) award("knight");
+    if ($(`tray-${winner}`).children.length === 0) award("flawless");
+    if (game.played.length <= 16) award("quick");
+  }
+  // the sticker book
+  function openStickers() {
+    let d = $("sticker-book");
+    if (!d) {
+      d = document.createElement("dialog");
+      d.id = "sticker-book";
+      d.className = "cx-book";
+      d.setAttribute("aria-labelledby", "sticker-title");
+      document.body.append(d);
+      d.addEventListener("click", (e) => { if (e.target === d) d.close(); });
+    }
+    d.innerHTML = `<h2 id="sticker-title">Stickers</h2><p class="cx-book__sub">${Object.keys(stickers).length} of ${STICKERS.length} collected. They are kept on this device.</p><ul class="cx-book__grid"></ul><button class="cx-btn cx-btn--solid" type="button" id="sticker-close">Close</button>`;
+    const grid = d.querySelector("ul");
+    STICKERS.forEach((s) => {
+      const got = Boolean(stickers[s.id]);
+      const li = document.createElement("li");
+      li.className = got ? "is-got" : "is-locked";
+      const art = mini(s.piece);
+      art.setAttribute("aria-hidden", "true");
+      const t = document.createElement("div");
+      t.innerHTML = `<b>${got ? s.name : "not yet"}</b><span>${s.how}</span>`;
+      li.append(art, t);
+      grid.append(li);
+    });
+    d.querySelector("#sticker-close").addEventListener("click", () => d.close());
+    d.showModal();
+    sfx("page");
+  }
+  if (stickerBtn) stickerBtn.addEventListener("click", openStickers);
+  if (window.Weather) window.Weather.ready.then(({ sky, wind }) => {
+    const words = { rain: "it's raining outside. the whale is delighted", storm: "a storm outside! the creatures huddle together", drizzle: "a little drizzle outside. the frog approves",
+      snow: "it's snowing outside! the penguin is very happy", fog: "foggy outside. the owl can't see a thing" }[sky] || (wind ? "a windy day. hold on to your hats" : null);
+    if (words && !game.played.length && mode !== "puzzle") note(words);
+  });
+
+  // a copy of the game is kept on the device, so it opens and plays without a connection (sw.js)
+  if ("serviceWorker" in navigator && location.protocol === "https:") addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => { /* fine without */ }));
 
   /* ---------- the opening, once per visitor ---------- */
 
