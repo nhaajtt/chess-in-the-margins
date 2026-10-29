@@ -2,7 +2,7 @@
    on one screen, or the daily puzzles; playing online still needs the internet). Pages are fetched fresh when
    possible and fall back to the copy; everything else comes from the copy and is refreshed in the background.
    Bump VERSION when the list changes. */
-const VERSION = "citm-1";
+const VERSION = "citm-2";
 const CORE = [
   "/",
   "/chess.css",

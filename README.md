@@ -180,9 +180,9 @@ No framework and no build step: just HTML, CSS and plain JavaScript in a handful
 | `game.js` | Everything else: the board on a tilted plane with creatures projected onto it, moves and fights animated with [GSAP](https://gsap.com), the camera, the story, the doodles, the commentary and the clock. |
 | `paper.js` | Paints the sheet of paper once on a canvas. |
 | `sound.js` | Plays the recordings in `assets/sfx/` (public domain sounds from Freesound, listed in `assets/sfx/CREDITS.md`): a voice, feet, a wind-up and a blow for each of the 12 creatures, and the beach ambience by day and night. Music (the story's music box, the team tunes, the losing trombone) is made with the Web Audio API, which also covers for any recording not loaded yet. Off until you turn it on. |
-| `sling.js` | The volume slingshot: shoot along the ruler to set the volume, or at the creatures for fun (and their revenge). Also the "tap me" sign. Shared with the lab. |
-| `torch.js` | Torchlight at night: the page goes dark and a torch lights the board. Shared with the lab. |
-| `weather.js`, `api/weather.js` | The real weather on the page; the function answers with one word for the sky and never sends a place to the page. Shared with the lab. |
+| `sling.js` | The volume slingshot: shoot along the ruler to set the volume, or at the creatures for fun (and their revenge). Also the "tap me" sign. |
+| `torch.js` | Torchlight at night: the page goes dark and a torch lights the board. |
+| `weather.js`, `api/weather.js` | The real weather on the page; the function answers with one word for the sky and never sends a place to the page. |
 | `puzzles.js` | Forty mate-in-two puzzles from the Lichess puzzle database (CC0). |
 | `sw.js`, `manifest.webmanifest` | The offline copy and the install details. |
 | `vendor/` | GSAP and rough.js, served from the site itself so the game works offline (GSAP under its standard no-charge license, rough.js under MIT). |
@@ -239,4 +239,4 @@ Vua Chim Cánh Cụt bảo nét viền là mực tím. Thế là hai bên phân 
 
 ## Licence
 
-MIT © Nhat Nguyen ([nhaajt](https://lab.nhaajt.com)). Made with [rough.js](https://roughjs.com) and [GSAP](https://gsap.com).
+MIT © Nhat Nguyen (nhaajt). Made with [rough.js](https://roughjs.com) and [GSAP](https://gsap.com).
