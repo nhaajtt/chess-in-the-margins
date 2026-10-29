@@ -61,6 +61,9 @@
       cx = r.left + r.width / 2 + M; cy = r.top + r.height / 2 + M;
       rx = r.width * 0.9 * T.k; ry = r.height * (vw < 900 ? 0.8 : 0.9) * T.k;
     }
+    // the warm, lit paper under the target, placed by the page; first, while the page's layout is still
+    // fresh from measuring the target, so the writes below do not make it work the layout out again
+    if (lit) { o.lit.place(lit, rx, ry); lit.style.opacity = String(Math.min(1, T.k * 1.2)); }
     const q = (s) => shade.querySelector(s);
     ["torch-all", "torch-dark"].forEach((c) => { const e = q("." + c); e.setAttribute("width", vw + M * 2); e.setAttribute("height", vh + M * 2); });
     const spot = q(".torch-spot");
@@ -80,8 +83,6 @@
     q(".torch-haze").setAttribute("d", d);
     const cg = shade.querySelector("#torch-cone");
     cg.setAttribute("x1", hx); cg.setAttribute("y1", hy); cg.setAttribute("x2", cx); cg.setAttribute("y2", cy);
-    // the warm, lit paper under the target, placed by the page
-    if (lit) { o.lit.place(lit, rx, ry); lit.style.opacity = String(Math.min(1, T.k * 1.2)); }
   }
   function set(on) {
     const o = T.o;

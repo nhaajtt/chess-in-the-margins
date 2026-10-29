@@ -295,7 +295,19 @@
   const lifeClock = G.timeline({ paused: true });
   if (anim) {
     const t0 = G.ticker.time;
-    G.ticker.add((t) => { lifeClock.time(t - t0, false); });
+    // while the board is scrolled right out of sight (reading the moves on a phone, say) the creatures
+    // rest and nothing is painted; they carry on where the clock has got to when it comes back
+    let seen = true;
+    if (window.IntersectionObserver) new IntersectionObserver(([e]) => { seen = e.isIntersecting; }).observe(cam);
+    G.ticker.add((t) => { if (seen) lifeClock.time(t - t0, false); });
+    // then the creatures shown on canvases are painted where this frame left their joints, all on one stage
+    const stage = CR.stage(layer);
+    G.ticker.add(() => {
+      if (!seen) return;
+      const b = Number(layer.dataset.cboil) || 0, cast = [];
+      for (const el of layer.children) if (el.__c && el.__c.cv) cast.push(el.__c);
+      if (stage) stage.paint(cast, b); else cast.forEach((c) => CR.paint(c, b));
+    });
   }
   function wake(el) {
     sleep(el);
@@ -336,7 +348,8 @@
       for (const [sq, el] of els) {
         const f = flipped ? 7 - (sq & 7) : sq & 7, back = (sq >> 4) === 0 || (sq >> 4) === 7;
         const t0 = drawAt + f * 0.2 + (back ? 0 : 0.08) + (colorOf(el.__p) ? 0.1 : 0);
-        CR.drawIn(el.__c, t0, 0.8);
+        // each one moves onto the canvas as soon as the pen has finished it, not once the last one is done
+        CR.drawIn(el.__c, t0, 0.8).then(() => { const ppu = piecePpu(), c = el.__c; if (ppu && els.get(sq) === el) CR.toCanvas(c, ppu); });
         if (back && !colorOf(el.__p)) G.delayedCall(t0, () => sfx("pencil", 0.6, 0.55));
         G.delayedCall(t0 + 0.75, () => sfx("appear", f, colorOf(el.__p), el.__p & 7));
       }
@@ -344,7 +357,8 @@
       G.delayedCall(drawAt + 8 * 0.2 + 1.8, askForTap);
       const done = drawAt + 8 * 0.2 + 0.9;
       penBusy = true;
-      G.delayedCall(done, () => { penBusy = false; if (!decoDrawing) bakePieces(); });
+      // moving them onto canvases takes only a few milliseconds a frame, so it need not wait for the margins
+      G.delayedCall(done, () => { penBusy = false; bakePieces(); });
       G.delayedCall(done, () => { for (const [, el] of els) { const c = el.__c; if (c.state !== "open") continue; CR.setFace(c, "happy", c.spec.face.beak ? "open" : "grin"); G.delayedCall(R(0.6, 1.1), () => CR.restFace(c)); G.fromTo(el.__act, { y: 0 }, { y: -12, duration: 0.18, yoyo: true, repeat: 1, ease: "power2.out", delay: R(0, 0.3) }); } });
     } else if (entrance && anim) {
       // they hop in from the edge of the page, one rank at a time
@@ -358,16 +372,24 @@
   // put every creature back on its square; ones in the middle of a move are left alone
   function relayout() { for (const el of layer.children) if (el.__at != null && !el.__away && !(G && G.isTweening(el))) place(el, el.__at); }
 
-  // once a creature is drawn its strokes become pictures (see creatures.js), twice as sharp as the
-  // biggest creature on screen so the camera can lean in; a bigger window makes sharper ones
+  // once a creature is drawn it moves onto a canvas (see creatures.js), or when nothing moves its strokes
+  // become pictures; either twice as sharp as the biggest creature on screen so the camera can lean in,
+  // and a bigger window makes sharper ones
   let penBusy = false;
+  function piecePpu() {
+    let w = 0;
+    for (const [, el] of els) w = Math.max(w, el.__body.getBoundingClientRect().width);
+    return w ? Math.min(5, Math.max(1.5, Math.ceil((w / 120) * (window.devicePixelRatio || 1) * 4) / 2)) : 0;
+  }
   function bakePieces() {
     if (penBusy || !els.size) return;
-    let w = 0;
-    for (const [, el] of els) w = Math.max(w, el.__c.svg.getBoundingClientRect().width);
-    if (!w) return;
-    const ppu = Math.min(5, Math.max(1.5, Math.ceil((w / 120) * (window.devicePixelRatio || 1) * 4) / 2));
-    for (const [, el] of els) if (el.__c.ppu < ppu) CR.bake(el.__c, ppu);
+    const ppu = piecePpu();
+    if (!ppu) return;
+    for (const [, el] of els) {
+      const c = el.__c;
+      if (anim && !c.noCanvas) { if ((c.cvPpu || 0) < ppu) CR.toCanvas(c, ppu).then((ok) => { if (!ok && c.noCanvas && el.__c === c) CR.bake(c, ppu); }); }
+      else if (c.ppu < ppu) CR.bake(c, ppu);
+    }
   }
 
   /* ---------- worry, check, sweat ---------- */
@@ -817,6 +839,7 @@
 
   function growNow(el, m) {
     const fresh = CR.make(m.promo);
+    CR.unbake(el.__c);
     el.__c.svg.replaceWith(fresh.svg);
     dressUp(fresh);
     sleep(el);
@@ -835,6 +858,7 @@
       .call(() => {
         const fresh = makeEl(m.promo);
         fresh.remove();
+        CR.unbake(el.__c);
         el.__act.replaceWith(fresh.__act);
         sleep(fresh);
         Object.assign(el, { __act: fresh.__act, __body: fresh.__body, __c: fresh.__c, __p: m.promo });
@@ -1338,6 +1362,9 @@
     G.ticker.add((t) => { decoClock.time(t - t0, false); });
   }
   const loop = (t) => { decoClock.add(t, decoClock.time()); decoTweens.push(t); return t; };
+  // a doodle moved by hand on every frame: gsap's quick setters write its transform straight away, by
+  // gsap's own rules, where a set() a frame would start a new tween and measure the drawing each time
+  const steer = (el) => { const to = {}; return (v) => { for (const k in v) (to[k] = to[k] || G.quickSetter(el, k))(v[k]); }; };
 
   // once the doodles are drawn, their still pen strokes become pictures (see creatures.js), so each frame
   // repaints only what moves; the pictures are let go when the doodles are drawn again
@@ -1436,7 +1463,8 @@
   if (window.Torch) window.Torch.init({
     gsap: G, anim, sfx,
     target: () => $("cam").getBoundingClientRect(),
-    lit: { before: $("cam"), place(lit, rx, ry) { const cam = $("cam"); lit.style.width = `${rx * 2}px`; lit.style.height = `${ry * 2}px`; lit.style.left = `${cam.offsetLeft + cam.offsetWidth / 2 - rx}px`; lit.style.top = `${cam.offsetTop + cam.offsetHeight / 2 - ry}px`; } },
+    // measured before anything is written, so the page is not made to lay itself out twice
+    lit: { before: $("cam"), place(lit, rx, ry) { const cam = $("cam"), x = cam.offsetLeft + cam.offsetWidth / 2, y = cam.offsetTop + cam.offsetHeight / 2; Object.assign(lit.style, { width: `${rx * 2}px`, height: `${ry * 2}px`, left: `${x - rx}px`, top: `${y - ry}px` }); } },
   });
 
   let decoPics = [], decoGen = 0, decoDrawing = false, beachKit = null, frogKit = null;
@@ -1728,7 +1756,8 @@
         if (anim) {
           loop(G.to(pad, { y: 2, duration: 1.6, yoyo: true, repeat: -1, ease: "sine.inOut" }));
           const buzz = { a: 0 };
-          loop(G.to(buzz, { a: Math.PI * 2, duration: 3.2, repeat: -1, ease: "none", onUpdate: () => G.set(fly, { x: fx0 + 46 + Math.cos(buzz.a) * 22, y: fy0 - 46 + Math.sin(buzz.a * 2) * 10 }) }));
+          const flyTo = steer(fly);
+          loop(G.to(buzz, { a: Math.PI * 2, duration: 3.2, repeat: -1, ease: "none", onUpdate: () => flyTo({ x: fx0 + 46 + Math.cos(buzz.a) * 22, y: fy0 - 46 + Math.sin(buzz.a * 2) * 10 }) }));
           loop(G.timeline({ repeat: -1, repeatDelay: 5.5, delay: 3 })
             .set(tongue, { opacity: 1, attr: { d: `M ${fx0} ${fy0 - 2} L ${fx0} ${fy0 - 2}` } })
             .to(tongue, { attr: { d: `M ${fx0} ${fy0 - 2} L ${fx0 + 46} ${fy0 - 46}` }, duration: 0.12, ease: "power3.out" })
@@ -1761,12 +1790,12 @@
       bf.append(wl, wr, rc.line(0, -8, 0, 6, { stroke: "#3a2a1a", strokeWidth: 2, seed: 474 }));
       deco.append(bf);
       loop(G.to([wl, wr], { scaleX: 0.25, svgOrigin: "0 0", duration: 0.12, yoyo: true, repeat: -1, ease: "sine.inOut" }));
-      const path = { t: j * 0.5 };
+      const path = { t: j * 0.5 }, bfTo = steer(bf);
       loop(G.to(path, { t: j * 0.5 + 1, duration: 22 + j * 6, repeat: -1, ease: "none", onUpdate: () => {
         const a = path.t * Math.PI * 2;
         const x = j ? W - 120 + Math.sin(a) * 90 : bx1 + 70 + Math.sin(a * 2) * 40;
         const y = j ? H * 0.3 + Math.sin(a * 3) * 70 + Math.cos(a) * 40 : H * 0.62 + Math.sin(a) * 120;
-        G.set(bf, { x, y, rotation: Math.cos(a * 3) * 18 });
+        bfTo({ x, y, rotation: Math.cos(a * 3) * 18 });
       } }));
     }
     // a pencil and a crayon lying under the board; they roll a little when a piece moves
@@ -1900,8 +1929,9 @@
         const left = Math.max(30, bx0 - 40), right = Math.min(sx0 - 60, bx1 + 40);
         G.set(turtle, { x: (left + right) / 2, y: ty, scale: narrow ? 0.8 : 1 });
         if (anim) {
+          const turnTurtle = steer(turtle);
           loop(G.timeline({ repeat: -1, yoyo: true }).fromTo(turtle, { x: left }, { x: right, duration: 50, ease: "none",
-            onRepeat: () => {}, onUpdate: function () { const dir = this.parent && this.parent.reversed() ? -1 : 1; G.set(turtle, { scaleX: (narrow ? 0.8 : 1) * dir }); } }));
+            onRepeat: () => {}, onUpdate: function () { const dir = this.parent && this.parent.reversed() ? -1 : 1; turnTurtle({ scaleX: (narrow ? 0.8 : 1) * dir }); } }));
           loop(G.to(turtle.__head, { x: 3, y: -2, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut" }));
           turtle.__legs.forEach((l, i) => loop(G.to(l, { x: i % 2 ? 2.5 : -2.5, duration: 0.45, yoyo: true, repeat: -1, ease: "sine.inOut" })));
         }
@@ -1920,7 +1950,8 @@
         });
         G.set(cat, { x: 80, y: cy });
         if (anim) {
-          loop(G.fromTo(cat, { x: 60 }, { x: Math.min(sx0 - 40, W * 0.6), duration: 70, ease: "none", repeat: -1, yoyo: true, onUpdate: function () { G.set(cat, { scaleX: this.reversed() ? -1 : 1 }); } }));
+          const turnCat = steer(cat);
+          loop(G.fromTo(cat, { x: 60 }, { x: Math.min(sx0 - 40, W * 0.6), duration: 70, ease: "none", repeat: -1, yoyo: true, onUpdate: function () { turnCat({ scaleX: this.reversed() ? -1 : 1 }); } }));
           loop(G.to(cat.__segs, { y: -7, duration: 0.3, yoyo: true, repeat: -1, ease: "sine.inOut", stagger: { each: 0.09, repeat: -1, yoyo: true } }));
         }
       }
@@ -1988,9 +2019,10 @@
         if (anim) {
           loop(G.to(bee.querySelector(".d-bwings"), { scaleY: 0.3, svgOrigin: "0 -2", duration: 0.05, yoyo: true, repeat: -1 }));
           const b8 = { a: 0 };
+          const beeTo = steer(bee);
           loop(G.to(b8, { a: Math.PI * 2, duration: 5, repeat: -1, ease: "none", onUpdate: () => {
             const bx = x + Math.sin(b8.a) * 48, by = fy - 70 + Math.sin(b8.a * 2) * 22;
-            G.set(bee, { x: bx, y: by, scaleX: Math.cos(b8.a) >= 0 ? 1 : -1 });
+            beeTo({ x: bx, y: by, scaleX: Math.cos(b8.a) >= 0 ? 1 : -1 });
           } }));
         } else G.set(bee, { x: x + 30, y: fy - 70 });
       }
@@ -2362,7 +2394,8 @@
         if (anim) {
           loop(G.to(gull.querySelector(".d-gwing"), { scaleY: -0.5, svgOrigin: "0 0", duration: 0.3, yoyo: true, repeat: -1, ease: "sine.inOut" }));
           const o = { a: 0 };
-          loop(G.to(o, { a: Math.PI * 2, duration: 14, repeat: -1, ease: "none", onUpdate: () => G.set(gull, { x: cx + Math.cos(o.a) * (seaW * 0.32), y: cy - 90 + Math.sin(o.a) * 26, scaleX: Math.sin(o.a) > 0 ? -1 : 1 }) }));
+          const gullTo = steer(gull);
+          loop(G.to(o, { a: Math.PI * 2, duration: 14, repeat: -1, ease: "none", onUpdate: () => gullTo({ x: cx + Math.cos(o.a) * (seaW * 0.32), y: cy - 90 + Math.sin(o.a) * 26, scaleX: Math.sin(o.a) > 0 ? -1 : 1 }) }));
         }
       }
     }
@@ -3333,7 +3366,8 @@
     cast.forEach(({ el }, i) => {
       const c = el.__c;
       let top = 30;
-      try { top = c.root.getBBox().y; } catch { /* not drawn yet */ }
+      const b = CR.box(c, c.root);
+      if (b && (b.width || b.height)) top = b.y;
       tl.call(() => {
         const leaf = inside(c, job, (r, g) => {
           g.append(r.path(`M 22 ${top + 2} Q 50 ${top - 22} 78 ${top + 2} Q 50 ${top - 6} 22 ${top + 2} Z`, { stroke: "#2f6a2a", strokeWidth: 1.4, fill: "#6fbf5a", fillStyle: "hachure", hachureGap: 2.2, seed: 3720 }));
@@ -3593,14 +3627,16 @@
   }
   function fitHandles() {
     const box = { left: -window.scrollX, top: -window.scrollY };
-    const put = (h, target) => {
-      if (!target) { h.hidden = true; return; }
-      const r = target.getBoundingClientRect();
+    // both are measured before either moves, so the page lays itself out once
+    const at = (target) => (target ? target.getBoundingClientRect() : null);
+    const put = (h, r) => {
+      if (!r) { h.hidden = true; return; }
       h.hidden = false;
       Object.assign(h.style, { left: `${r.left - box.left}px`, top: `${r.top - box.top}px`, width: `${r.width}px`, height: `${r.height}px` });
     };
-    if (!dragging) put(cloudHandle, deco.querySelector(".d-cloud"));
-    put(moonHandle, deco.querySelector(".d-moon"));
+    const cloud = dragging ? null : at(deco.querySelector(".d-cloud")), moon = at(deco.querySelector(".d-moon"));
+    if (!dragging) put(cloudHandle, cloud);
+    put(moonHandle, moon);
   }
   let dragging = null;
   setInterval(() => { if (!document.hidden) fitHandles(); }, 500);
@@ -4384,10 +4420,10 @@
       draw(sc) {
         sc.write("Chess in the margins", 500, 245, 86, [["Chess", "#c8452e"], [" in the margins", "#3c4fb8"]]);
         // the author's name in navy, its shadow in royal gold just behind it
-        sc.write("", 502, 327, 30, [["a little story drawn by ", "rgba(0,0,0,0)"], ["Nhat Nguyen", "#c9a227"]]);
-        sc.write("", 500, 325, 30, [["a little story drawn by ", "#5d6170"], ["Nhat Nguyen", "#14213d"]]);
-        sc.write("", 502, 370, 28, [["một câu chuyện nhỏ vẽ bởi ", "rgba(0,0,0,0)"], ["Nhật Nguyễn", "#c9a227"]], undefined, true);
-        sc.write("", 500, 368, 28, [["một câu chuyện nhỏ vẽ bởi ", "#5d6170"], ["Nhật Nguyễn", "#14213d"]], undefined, true);
+        sc.write("", 502, 327, 30, [["a little story drawn by ", "rgba(0,0,0,0)"], ["nhaajt", "#c9a227"]]);
+        sc.write("", 500, 325, 30, [["a little story drawn by ", "#5d6170"], ["nhaajt", "#14213d"]]);
+        sc.write("", 502, 370, 28, [["một câu chuyện nhỏ vẽ bởi ", "rgba(0,0,0,0)"], ["nhaajt", "#c9a227"]], undefined, true);
+        sc.write("", 500, 368, 28, [["một câu chuyện nhỏ vẽ bởi ", "#5d6170"], ["nhaajt", "#14213d"]], undefined, true);
         sc.ink((rc) => rc.path("M 300 270 Q 400 284 500 270 T 700 272", { stroke: "#c8452e", strokeWidth: 2.4, roughness: 1.2, seed: 3 }));
         sc.ink(theStar(232, 210, 18, 4), twinkle(232, 210));
         sc.ink(theStar(768, 212, 14, 8), twinkle(768, 212));
@@ -4699,8 +4735,12 @@
       // the scene stays invisible until its turn
       G.set(g, { opacity: 0 });
       tl.set(g, { opacity: 1 }, at);
+      tl.call(() => g.removeAttribute("display"), null, at);
       const end = drawScene(sc, g, tl, at);
       at = eraseScene(g, sc, tl, end + 2.2 + (scene.hold || 0));
+      // and out of the page's way altogether, once it has been measured: thousands of strokes waiting
+      // their turn would otherwise be styled and laid out again with every frame of the scenes before
+      g.setAttribute("display", "none");
     });
     return new Promise((ok) => {
       const finish = () => {

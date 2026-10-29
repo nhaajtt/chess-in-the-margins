@@ -547,10 +547,455 @@
   }
   // back to pen strokes, before the pen draws it again
   function unbake(c) {
+    offCanvas(c);
     c.bakeToken = null;
     if (c.orig) for (const [g, keep] of c.orig) g.replaceChildren(keep);
     c.orig = null;
     c.ppu = 0;
+  }
+
+  /* ---------- painting: a drawn creature is shown on a canvas ---------- */
+  // Even as pictures, every joint that moves makes the browser restyle, lay out and paint the whole
+  // creature again, every frame, and on a phone thirty-two of them is more than a frame can hold.
+  // So once a creature is drawn its svg stays only as the skeleton: gsap still turns its joints and
+  // swaps its faces there, the browser no longer draws it, and the page paints it onto one canvas a
+  // frame, in the same places and the same order. Each copy of each part (the bits that never move
+  // inside themselves) is drawn once from its pen strokes onto a little canvas of its own, which every
+  // creature of that kind then shares; only the face is drawn stroke by stroke, since it changes.
+  const PAD = 20; // drawing units around the creature, room for the limbs to swing out
+  const KNOWN = new Set(["g", "path", "image", "text"]);
+  // the svg is read once into plain records; after that only what gsap or the page changed is read again
+  // still: for a sprite, drawn from the pen strokes alone, whatever the pen happens to be doing to them
+  function compile(n, index, still = false, pics = null, c = null) {
+    const kids = [];
+    for (const k of n.children) {
+      const tag = k.localName, cls = k.getAttribute("class") || "";
+      if (!KNOWN.has(tag)) { index.odd = true; continue; }
+      const node = { el: k, copy: cls === "f0" ? 0 : cls === "f1" ? 1 : -1, t: null, m: null, hide: false, op: 1 };
+      const pic = (pics && pics.get(k)) || (c && tag === "g" && stillGroup(c, k) && faceSprite(c, k));
+      if (pic) node.sprite = pic;
+      else if (tag === "g") node.kids = compile(k, index, still, pics, c);
+      else if (tag === "image") {
+        const href = k.getAttribute("href");
+        node.im = held.get(href);
+        if (!node.im) { node.im = new Image(); node.im.src = href; }
+        node.box = ["x", "y", "width", "height"].map((a) => Number(k.getAttribute(a)) || 0);
+      } else if (tag === "text") {
+        // a plain line of words (the zzz of a sleeper), in the font and colours the page's css gives it
+        if (k.childElementCount) { index.odd = true; continue; }
+        const cs = getComputedStyle(k);
+        node.words = k.textContent;
+        node.at = [Number(k.getAttribute("x")) || 0, Number(k.getAttribute("y")) || 0];
+        node.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        node.align = { middle: "center", end: "right" }[cs.textAnchor] || "left";
+        node.fill = cs.fill && cs.fill !== "none" ? cs.fill : null;
+        node.stroke = cs.stroke && cs.stroke !== "none" ? cs.stroke : null;
+        node.sw = parseFloat(cs.strokeWidth) || 1;
+        node.fo = Number(cs.fillOpacity || 1);
+        node.so = Number(cs.strokeOpacity || 1);
+      } else {
+        node.p = new Path2D(k.getAttribute("d") || "");
+        const f = k.getAttribute("fill"), st = k.getAttribute("stroke"), dash = k.getAttribute("stroke-dasharray");
+        node.fill = f && f !== "none" ? f : null;
+        node.stroke = st && st !== "none" ? st : null;
+        node.sw = Number(k.getAttribute("stroke-width") || 1);
+        node.cap = k.getAttribute("stroke-linecap") || "butt";
+        node.join = k.getAttribute("stroke-linejoin") || "miter";
+        node.fo = Number(k.getAttribute("fill-opacity") || 1);
+        node.so = Number(k.getAttribute("stroke-opacity") || 1);
+        node.dash = dash && dash !== "none" ? dash.split(/[\s,]+/).map(Number) : null;
+      }
+      look(node, still);
+      index.set(k, node);
+      kids.push(node);
+    }
+    return kids;
+  }
+  const WATCHED = ["transform", "display", "style", "opacity"];
+  // what can change between frames: shown or not, how see-through, and where the joint has turned
+  // what: the one attribute that changed, when that is known
+  function look(node, still = false, what = null) {
+    const el = node.el;
+    if (what !== "transform") {
+      const st = el.style, so = still ? "" : st.opacity;
+      node.hide = el.getAttribute("display") === "none" || (!still && (st.display === "none" || st.visibility === "hidden"));
+      node.op = so !== "" ? Number(so) : Number(el.getAttribute("opacity") ?? 1);
+      if (what) return;
+    }
+    const s = el.getAttribute("transform");
+    if (s === node.t) return;
+    node.t = s;
+    node.m = null;
+    if (!s) return;
+    if (s.startsWith("matrix(")) {
+      const v = s.slice(7, -1).split(/[\s,]+/).map(Number);
+      if (v.length === 6 && v.every(Number.isFinite)) { node.m = v; return; }
+    }
+    let m = new DOMMatrix();
+    for (const t of el.transform.baseVal) m = m.multiply(t.matrix);
+    node.m = [m.a, m.b, m.c, m.d, m.e, m.f];
+  }
+  function paintKids(g, kids, a, b, c, d, e, f, alpha, boil) {
+    for (const n of kids) {
+      if (n.hide || (n.copy >= 0 && n.copy !== boil)) continue;
+      const op = alpha * n.op;
+      if (!(op > 0)) continue;
+      let A = a, B = b, C = c, D = d, E = e, F = f;
+      const m = n.m;
+      if (m) {
+        A = a * m[0] + c * m[1]; B = b * m[0] + d * m[1];
+        C = a * m[2] + c * m[3]; D = b * m[2] + d * m[3];
+        E = a * m[4] + c * m[5] + e; F = b * m[4] + d * m[5] + f;
+      }
+      if (n.kids) { paintKids(g, n.kids, A, B, C, D, E, F, op, boil); continue; }
+      g.setTransform(A, B, C, D, E, F);
+      g.globalAlpha = op;
+      if (n.sprite) g.drawImage(n.sprite.bm || n.sprite.cv, n.sprite.x, n.sprite.y, n.sprite.w, n.sprite.h);
+      else if (n.words != null) {
+        g.font = n.font; g.textAlign = n.align; g.textBaseline = "alphabetic";
+        if (n.fill) { g.globalAlpha = op * n.fo; g.fillStyle = n.fill; g.fillText(n.words, n.at[0], n.at[1]); }
+        if (n.stroke) { g.globalAlpha = op * n.so; g.strokeStyle = n.stroke; g.lineWidth = n.sw; g.strokeText(n.words, n.at[0], n.at[1]); }
+      }
+      else if (n.im) { if (n.im.complete && n.im.naturalWidth) g.drawImage(n.im, n.box[0], n.box[1], n.box[2], n.box[3]); }
+      else {
+        if (n.fill) { g.globalAlpha = op * n.fo; g.fillStyle = n.fill; g.fill(n.p); }
+        if (n.stroke) {
+          g.globalAlpha = op * n.so; g.strokeStyle = n.stroke; g.lineWidth = n.sw; g.lineCap = n.cap; g.lineJoin = n.join;
+          if (n.dash) g.setLineDash(n.dash);
+          g.stroke(n.p);
+          if (n.dash) g.setLineDash([]);
+        }
+      }
+    }
+  }
+
+  // the sprites, by part and sharpness: { cv, x, y, w, h }, drawn a few at a time in the gaps between frames
+  const sprites = new Map(), making = new Map(), boxes = new Map();
+  const spriteWork = [];
+  let spriteSoon = false;
+  function spritePump() {
+    if (spriteSoon || !spriteWork.length) return;
+    spriteSoon = true;
+    quiet(() => {
+      spriteSoon = false;
+      const t = performance.now();
+      while (spriteWork.length && performance.now() - t < 4) {
+        const job = spriteWork.shift();
+        try { job.ok(job.fn()); } catch (e) { job.no(e); }
+      }
+      spritePump();
+    });
+  }
+  function makeSprite(id, grp, ppu) {
+    const k = `${id}@${ppu}`;
+    if (sprites.has(k)) return Promise.resolve(sprites.get(k));
+    if (making.has(k)) return making.get(k);
+    const job = new Promise((ok, no) => { spriteWork.push({ ok, no, fn: () => drawSprite(id, k, grp, ppu) }); spritePump(); });
+    making.set(k, job);
+    job.then(() => making.delete(k), () => making.delete(k));
+    return job;
+  }
+  function drawSprite(id, k, grp, ppu, c = null) {
+    if (sprites.has(k)) return sprites.get(k);
+    if (!grp.isConnected) throw new Error("gone");
+    // where its strokes reach, found once while the svg is still drawn
+    let b = boxes.get(id);
+    if (!b) {
+      const r = c ? box(c, grp) : grp.getBBox();
+      if (!r || (!r.width && !r.height)) throw new Error("empty");
+      b = { x: r.x - 3, y: r.y - 3, w: r.width + 6, h: r.height + 6 };
+      boxes.set(id, b);
+    }
+    const W = Math.max(1, Math.ceil(b.w * ppu)), H = Math.max(1, Math.ceil(b.h * ppu));
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    const index = new Map();
+    const kids = compile(grp, index, true);
+    if (index.odd || !g) throw new Error("odd");
+    paintKids(g, kids, ppu, 0, 0, ppu, -b.x * ppu, -b.y * ppu, 1, -1);
+    const sp = { cv, bm: null, x: b.x, y: b.y, w: W / ppu, h: H / ppu };
+    // a finished bitmap is cheaper to draw again and again than a canvas
+    if (root.createImageBitmap) createImageBitmap(cv).then((bm) => { sp.bm = bm; sp.cv = null; }, () => {});
+    sprites.set(k, sp);
+    return sp;
+  }
+  // The face changes (eyes blink, pupils wander, the mouth swaps), but the strokes inside each of its
+  // bits do not: any group whose insides nothing has moved yet becomes a sprite of its own, moved,
+  // shown and hidden as a whole. Once something inside one moves, that group is taken apart for good.
+  function stillGroup(c, grp) {
+    let paths = 0;
+    for (const d of grp.querySelectorAll("*")) {
+      const t = d.localName;
+      if (t === "path") paths++;
+      else if (t !== "g") return false;
+      if (c.moving.has(d) || d.hasAttribute("display") || d.hasAttribute("data-o") || /^f\d$/.test(d.getAttribute("class") || "") || (d.getAttribute("style") || "").trim()) return false;
+    }
+    return paths > 0;
+  }
+  // creatures of one kind share these too: the same place in the same drawing, the same strokes
+  function faceSprite(c, grp) {
+    let id = c.key, len = 0;
+    for (let n = grp; n && n !== c.svg; n = n.parentNode) id += `/${Array.prototype.indexOf.call(n.parentNode.children, n)}`;
+    for (const p of grp.querySelectorAll("path")) len += (p.getAttribute("d") || "").length;
+    id += `#${len}`;
+    try { return drawSprite(id, `${id}@${c.cvPpu}`, grp, c.cvPpu, c); } catch { return null; }
+  }
+  // the same bits the pictures are made of: each copy of each part, and the shadow
+  function spriteGroups(c) {
+    const groups = [];
+    c.svg.querySelectorAll(".p").forEach((p) => {
+      const copies = [...p.children].filter((n) => /^f\d$/.test(n.getAttribute("class") || ""));
+      if (copies.length) copies.forEach((g) => groups.push([`${c.key}/${p.getAttribute("class")}/${g.getAttribute("class")}/${g.childElementCount}`, g]));
+      else if (p.classList.contains("p-shadow")) groups.push([`${c.key}/shadow`, p]);
+    });
+    return groups;
+  }
+  // put a drawn creature on its canvas at ppu (canvas pixels per drawing unit); false if it stays an svg
+  async function toCanvas(c, ppu) {
+    if (c.cv && c.cvPpu === ppu) return true;
+    if (c.noCanvas || !c.svg.isConnected) return false;
+    const token = (c.cvToken = {});
+    const groups = spriteGroups(c);
+    let pics;
+    try { pics = await Promise.all(groups.map(([id, g]) => makeSprite(id, g, ppu))); } catch { return false; }
+    if (c.cvToken !== token || !c.svg.isConnected) return false;
+    offCanvas(c);
+    const map = new Map();
+    groups.forEach(([, g], i) => map.set(g, pics[i]));
+    return onCanvas(c, ppu, map);
+  }
+  // measure bits of a creature (its own drawing units, before their own transform) even while its svg
+  // is hidden behind the canvas: the svg is shown for the moment it takes
+  function measure(c, nodes) {
+    const hidden = c.svg.style.display === "none";
+    if (hidden) c.svg.style.display = "";
+    try { return nodes.map((n) => { try { return n.getBBox(); } catch { return null; } }); }
+    finally { if (hidden) c.svg.style.display = "none"; }
+  }
+  const box = (c, node) => measure(c, [node])[0];
+  // from a bit's own drawing units to the svg's, through the joints above it as they are now
+  function toSvg(c, el) {
+    let m = new DOMMatrix();
+    for (let n = el.parentNode; n && n !== c.svg; n = n.parentNode) {
+      let t = new DOMMatrix();
+      for (const x of n.transform.baseVal) t = t.multiply(x.matrix);
+      m = t.multiply(m);
+    }
+    return m;
+  }
+  // size the canvas to reach PAD past everything drawn, and past bits just added at their full size
+  // (they often grow in from nothing); it only ever grows
+  function fit(c, added) {
+    const vb = c.svg.viewBox.baseVal, ppu = c.cvPpu;
+    const boxes = measure(c, [c.svg, ...added]);
+    const b = boxes[0];
+    if (!b || (!b.width && !b.height)) return false;
+    let x0 = b.x, y0 = b.y, x1 = b.x + b.width, y1 = b.y + b.height;
+    added.forEach((el, i) => {
+      const r = boxes[i + 1];
+      if (!r || (!r.width && !r.height)) return;
+      const m = toSvg(c, el);
+      for (const [x, y] of [[r.x, r.y], [r.x + r.width, r.y], [r.x, r.y + r.height], [r.x + r.width, r.y + r.height]]) {
+        const p = m.transformPoint({ x, y });
+        x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+      }
+    });
+    x0 = Math.min(vb.x, x0 - PAD); y0 = Math.min(vb.y, y0 - PAD);
+    x1 = Math.max(vb.x + vb.width, x1 + PAD); y1 = Math.max(vb.y + vb.height, y1 + PAD);
+    if (c.at) {
+      const [ax, ay] = c.at;
+      if (x0 >= ax && y0 >= ay && x1 <= ax + c.cv.width / ppu && y1 <= ay + c.cv.height / ppu) return true;
+      x0 = Math.min(x0, ax); y0 = Math.min(y0, ay);
+      x1 = Math.max(x1, ax + c.cv.width / ppu); y1 = Math.max(y1, ay + c.cv.height / ppu);
+    }
+    const W = Math.ceil((x1 - x0) * ppu), H = Math.ceil((y1 - y0) * ppu);
+    c.cv.width = W; c.cv.height = H;
+    const pc = (u) => `${(u / vb.width) * 100}%`;
+    // margins in percent are of the width, so the canvas takes up exactly the svg's square in the layout
+    Object.assign(c.cv.style, { width: pc(W / ppu), marginLeft: pc(x0 - vb.x), marginTop: pc(y0 - vb.y), marginBottom: pc(vb.y + vb.height - (y0 + H / ppu)) });
+    c.at = [x0, y0, ppu];
+    return true;
+  }
+  // swap the drawn svg for a canvas of the same size and place; the svg keeps its place in the page's
+  // layout through the canvas, which reaches out past it by PAD on every side
+  function onCanvas(c, ppu, pics) {
+    const cv = document.createElement("canvas");
+    const g = cv.getContext("2d");
+    if (!g) return false;
+    cv.className = "cr-canvas";
+    cv.setAttribute("aria-hidden", "true");
+    Object.assign(c, { cv, g, at: null, cvPpu: ppu, pics, tree: null });
+    c.moving = c.moving || new WeakSet();
+    // it shows its own canvas until a stage takes it
+    c.solo = true;
+    c.added = [];
+    c.watch = new MutationObserver((recs) => { if (c.cv) take(c, recs); });
+    c.watch.observe(c.svg, { childList: true, subtree: true, attributes: true, attributeFilter: WATCHED });
+    if (!fit(c, []) || !paint(c, 0)) { offCanvas(c); return false; }
+    c.svg.after(cv);
+    c.svg.style.display = "none";
+    return true;
+  }
+  function offCanvas(c) {
+    c.cvToken = null;
+    if (!c.cv) return;
+    c.watch.disconnect();
+    c.cv.remove();
+    c.svg.style.display = "";
+    c.cv = c.g = c.tree = c.watch = c.index = c.pics = c.at = null;
+    c.cvPpu = 0;
+  }
+  // take in what gsap and the page changed since the last frame; false if this one has to stay an svg
+  // changes reach here twice over: taken at the start of each frame, and handed over by the browser
+  // for whatever happens between frames (a face pulled when a click lands), so none is missed
+  function take(c, recs) {
+    for (const r of recs) {
+      if (r.type === "childList") {
+        c.tree = null;
+        r.addedNodes.forEach((n) => { if (n.nodeType === 1 && n.isConnected) c.added.push(n); });
+      } else if (c.tree) {
+        const n = c.index.get(r.target);
+        if (n) look(n, false, r.attributeName);
+        // something inside a sprite moved: that sprite is taken apart
+        else if (r.target !== c.svg && r.target.isConnected) { c.moving.add(r.target); c.tree = null; }
+      }
+    }
+  }
+  function update(c) {
+    if (!c.cv) return false;
+    take(c, c.watch.takeRecords());
+    if (!c.tree) {
+      const added = c.added.splice(0);
+      c.index = new Map();
+      c.tree = compile(c.svg, c.index, false, c.pics, c);
+      // something the canvas cannot draw: this one stays an svg
+      if (c.index.odd) { offCanvas(c); c.noCanvas = true; return false; }
+      if (added && added.length) fit(c, added);
+    }
+    return true;
+  }
+  // paint a creature on its own canvas; boil: which of the two copies of every part shows this frame
+  function paint(c, boil) {
+    if (!update(c)) return false;
+    const g = c.g, [x0, y0, k] = c.at;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.cv.width, c.cv.height);
+    paintKids(g, c.tree, k, 0, 0, k, -x0 * k, -y0 * k, 1, boil);
+    g.globalAlpha = 1;
+    return true;
+  }
+
+  /* ---------- the stage: the whole cast on one canvas ---------- */
+  // Every canvas still costs the graphics card a round trip of its own each frame, and thirty-two of
+  // them add up, so the creatures on the board are all painted onto one canvas laid over them, in the
+  // order the page stacks them. Each keeps its own canvas, hidden, holding its place in the page; the
+  // stage reads where the page has put, turned, faded or tinted it, and paints it there. One that strays
+  // past the stage's edges (on its way to the tray, say) shows its own canvas until it is back.
+  const cssMatrix = (s) => new DOMMatrix(s);
+  // an element's own transform, about its origin, as the page has it now
+  function own(cs) {
+    const tf = cs.transform, tr = cs.translate, ro = cs.rotate, sc = cs.scale;
+    if (tf === "none" && (!tr || tr === "none") && (!ro || ro === "none") && (!sc || sc === "none")) return null;
+    const [ox, oy] = cs.transformOrigin.split(" ").map(parseFloat);
+    let m = new DOMMatrix().translate(ox, oy);
+    if (tr && tr !== "none") m = m.multiply(cssMatrix(`translate(${tr.trim().split(/\s+/).slice(0, 2).join(",")})`));
+    if (ro && ro !== "none") m = m.multiply(cssMatrix(`rotate(${ro.trim().split(/\s+/).pop()})`));
+    if (sc && sc !== "none") m = m.multiply(cssMatrix(`scale(${sc.trim().split(/\s+/).slice(0, 2).join(",")})`));
+    if (tf !== "none") m = m.multiply(cssMatrix(tf));
+    return m.translate(-ox, -oy);
+  }
+  function stage(layer) {
+    const cv = document.createElement("canvas");
+    cv.className = "cr-stage";
+    cv.setAttribute("aria-hidden", "true");
+    const g = cv.getContext("2d");
+    if (!g) return null;
+    layer.prepend(cv);
+    const tints = "filter" in g;
+    let lw = 0, lh = 0, D = 1, ml = 0, mt = 0, sized = false, dpr = 0;
+    // the layer's size is only read again when it changes
+    if (root.ResizeObserver) new ResizeObserver(() => { sized = false; }).observe(layer);
+    // the stage reaches past the board on every side, a little more above for the hats
+    function size() {
+      if (sized && dpr === root.devicePixelRatio) return lw > 0;
+      sized = !!root.ResizeObserver; dpr = root.devicePixelRatio;
+      const w = layer.clientWidth, h = layer.clientHeight;
+      if (!w || !h) { lw = 0; return false; }
+      const d = Math.min((root.devicePixelRatio || 1) * 1.25, 4096 / (w * 1.5), 4096 / (h * 1.6));
+      if (w === lw && h === lh && d === D) return true;
+      lw = w; lh = h; D = d; ml = w * 0.25; mt = h * 0.35;
+      const W = w + ml * 2, H = h + mt + h * 0.25;
+      cv.width = Math.ceil(W * D); cv.height = Math.ceil(H * D);
+      Object.assign(cv.style, { left: `${-ml}px`, top: `${-mt}px`, width: `${W}px`, height: `${H}px` });
+      return true;
+    }
+    function place(c) {
+      // from the creature's drawing units to the layer's pixels, through each box the page put it in;
+      // worked out again only when one of those boxes has a new style or class (most stand still)
+      const body = c.cv.parentElement, vb = c.svg.viewBox.baseVal;
+      let key = `${D} ${ml} ${mt}`, n = body;
+      for (; n && n !== layer; n = n.parentElement) key += `|${n.getAttribute("style")}|${n.className}`;
+      if (n !== layer) return { away: true };
+      if (key === c.stageKey) return c.stageAt;
+      c.stageKey = key;
+      c.stageAt = null;
+      let m = new DOMMatrix(), op = 1, filter = "", z = 0, top = null;
+      for (n = body; n && n !== layer; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.display === "none" || cs.visibility !== "visible") return null;
+        op *= Number(cs.opacity);
+        if (cs.filter && cs.filter !== "none") filter = `${cs.filter} ${filter}`;
+        const t = own(cs);
+        m = new DOMMatrix().translate(n.offsetLeft, n.offsetTop).multiply(t || new DOMMatrix()).multiply(m);
+        z = parseInt(cs.zIndex, 10) || 0;
+        top = n;
+      }
+      if (!(op > 0)) return null;
+      const k = parseFloat(getComputedStyle(body).width) / vb.width;
+      m = new DOMMatrix().translate(ml * D, mt * D).scale(D).multiply(m).scale(k).translate(-vb.x, -vb.y);
+      return (c.stageAt = { m, op, filter: filter.trim(), z, top, c });
+    }
+    // does the creature's whole canvas land on the stage?
+    function inside(c, m) {
+      const [x0, y0, ppu] = c.at, x1 = x0 + c.cv.width / ppu, y1 = y0 + c.cv.height / ppu;
+      for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) {
+        const p = m.transformPoint({ x, y });
+        if (p.x < 0 || p.y < 0 || p.x > cv.width || p.y > cv.height) return false;
+      }
+      return true;
+    }
+    const solo = (c, on) => { if (c.solo !== on) { c.solo = on; c.cv.style.visibility = on ? "" : "hidden"; } };
+    return {
+      // cast: the creatures on canvases, any order; boil as for paint
+      paint(cast, boil) {
+        if (cv.parentNode !== layer) layer.prepend(cv);
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, cv.width, cv.height);
+        if (!size()) { cast.forEach((c) => { solo(c, true); paint(c, boil); }); return; }
+        const shown = [];
+        for (const c of cast) {
+          if (!update(c)) continue;
+          const at = place(c);
+          if (!at) { solo(c, false); continue; }
+          if (at.away) { solo(c, true); paint(c, boil); continue; }
+          if (!inside(c, at.m) || (at.filter && !tints)) { solo(c, true); paint(c, boil); continue; }
+          solo(c, false);
+          at.i = Array.prototype.indexOf.call(layer.children, at.top);
+          shown.push(at);
+        }
+        shown.sort((a, b) => a.z - b.z || a.i - b.i);
+        let tint = "none";
+        for (const { c, m, op, filter } of shown) {
+          if (tints && (filter || "none") !== tint) g.filter = tint = filter || "none";
+          paintKids(g, c.tree, m.a, m.b, m.c, m.d, m.e, m.f, op, boil);
+        }
+        if (tint !== "none") g.filter = "none";
+        g.globalAlpha = 1;
+      },
+      // a creature taken off the stage shows its own canvas again
+      release(c) { if (c.cv) solo(c, true); },
+    };
   }
 
   // The same for a whole drawing that has its own moving bits (the doodles round the page): only runs of
@@ -634,5 +1079,5 @@
     return urls;
   }
 
-  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, flatten, release, pen, E, INK, SPECS };
+  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, toCanvas, offCanvas, paint, stage, box, flatten, release, pen, E, INK, SPECS };
 })(typeof window !== "undefined" ? window : this);

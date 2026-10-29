@@ -64,6 +64,8 @@ button { font: inherit; color: inherit; }
 .cx-piece { will-change: transform; }
 /* a creature drawn in code (creatures.js); every part is drawn twice and the copies take turns */
 .cr { display: block; width: 100%; height: auto; overflow: visible; pointer-events: none; }
+.cr-canvas { display: block; height: auto; max-width: none; pointer-events: none; }
+.cr-stage { position: absolute; z-index: 1; pointer-events: none; }
 [data-cboil="0"] .cr .f1, [data-cboil="1"] .cr .f0 { visibility: hidden; }
 .cx-tray .cr { width: 40px; height: 40px; }
 .cx-promo__row .cr { width: 100%; height: 100%; }
