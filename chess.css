@@ -35,6 +35,9 @@ button { font: inherit; color: inherit; }
 .cx-nav { display: flex; align-items: center; gap: 22px; padding: 14px clamp(16px, 3vw, 40px); position: relative; z-index: 5; }
 .cx-nav__home { margin: 0; font: 700 24px var(--sketch); }
 .cx-nav__home i { font: 700 18px var(--hand); font-style: normal; color: var(--pen-red); display: inline-block; transform: rotate(-6deg); }
+.cx-nav nav { margin-left: auto; display: flex; gap: 18px; }
+.cx-nav nav a { font-weight: 700; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.cx-nav nav a:hover { text-decoration: underline wavy var(--pen-red) 2px; }
 
 /* ---------- the page ---------- */
 .cx-page { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "title title" "table side"; gap: 8px clamp(20px, 3vw, 48px); padding: 0 clamp(16px, 3vw, 40px) 190px; max-width: 1240px; margin: 0 auto; }
