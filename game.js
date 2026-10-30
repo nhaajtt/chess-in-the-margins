@@ -47,17 +47,19 @@
   const PERSPECTIVE = 1400;
   const cssTilt = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tilt")) || 0;
   let tiltNow = anim ? 0 : cssTilt(), spinNow = 0;
+  // the turn is written straight onto the board's transform: a custom property there would be handed
+  // down to every pen stroke inside it, and the browser would restyle them all on every frame of a turn
   function setBoardTransform() {
-    board.style.setProperty("--tilt-now", `${tiltNow}deg`);
-    board.style.setProperty("--spin", `${spinNow}deg`);
+    board.style.transform = `perspective(${PERSPECTIVE}px) rotateX(${tiltNow}deg) rotateZ(${spinNow}deg)`;
   }
   const dispCol = (sq) => (flipped ? 7 - (sq & 7) : sq & 7);
   const dispRow = (sq) => (flipped ? sq >> 4 : 7 - (sq >> 4));
   // square centre in the board drawing's own units (viewBox -60 -20 920 880, squares 100 wide)
   const local = (sq) => ({ x: (dispCol(sq) + 0.5) * 100, y: (dispRow(sq) + 0.5) * 100 });
   // a point of the drawing projected to the flat layer: the same perspective, tilt and spin as .cx-board
+  let camW = 0; // the camera's width, held while every creature is put back in one go
   function project(x, y) {
-    const W = cam.clientWidth, H = (W * 880) / 920, u = W / 920, a = (tiltNow * Math.PI) / 180, s = (spinNow * Math.PI) / 180;
+    const W = camW || cam.clientWidth, H = (W * 880) / 920, u = W / 920, a = (tiltNow * Math.PI) / 180, s = (spinNow * Math.PI) / 180;
     let dx = (x + 60) * u - W / 2, dy = (y + 20) * u - H / 2;
     if (s) { const c = Math.cos(s), n = Math.sin(s); [dx, dy] = [dx * c - dy * n, dx * n + dy * c]; }
     const z = dy * Math.sin(a), k = PERSPECTIVE / (PERSPECTIVE - z);
@@ -155,7 +157,7 @@
   }
   // the pen draws the board: every down stroke left to right, every across stroke top to bottom,
   // then the squares are hatched in and the coordinates written. Returns how long it takes.
-  const dash = (p) => { const L = p.getTotalLength ? p.getTotalLength() : 900; p.style.strokeDasharray = `${L} ${L}`; p.style.strokeDashoffset = `${L}`; return p; };
+  const dash = (p) => { const L = CR.lengthOf(p); p.style.strokeDasharray = `${L} ${L}`; p.style.strokeDashoffset = `${L}`; return p; };
   const undash = (list) => list.forEach((p) => { p.style.strokeDasharray = ""; p.style.strokeDashoffset = ""; });
   function drawBoardIn(at = 0) {
     if (!anim) return 0;
@@ -212,7 +214,7 @@
     if (anim) {
       if (fresh) {
         const paths = [...ring.querySelectorAll("path")];
-        paths.forEach((p) => { const L = p.getTotalLength(); p.style.strokeDasharray = `${L}`; p.style.strokeDashoffset = `${L}`; });
+        paths.forEach((p) => { const L = CR.lengthOf(p); p.style.strokeDasharray = `${L}`; p.style.strokeDashoffset = `${L}`; });
         markTweens.push(G.to(paths, { strokeDashoffset: 0, duration: 0.45, ease: "power2.out" }));
       }
       markTweens.push(G.to(ring, { rotation: 360, svgOrigin: `${s.x} ${s.y + 18}`, duration: 9, ease: "none", repeat: -1 }));
@@ -299,7 +301,13 @@
     // rest and nothing is painted; they carry on where the clock has got to when it comes back
     let seen = true;
     if (window.IntersectionObserver) new IntersectionObserver(([e]) => { seen = e.isIntersecting; }).observe(cam);
-    G.ticker.add((t) => { if (seen) lifeClock.time(t - t0, false); });
+    // and while the pen is still drawing them they hold still, picking up from there once it is done
+    let held = 0, last = 0;
+    G.ticker.add((t) => {
+      if (penBusy) held += t - (last || t);
+      last = t;
+      if (seen && !penBusy) lifeClock.time(t - t0 - held, false);
+    });
     // then the creatures shown on canvases are painted where this frame left their joints, all on one stage
     const stage = CR.stage(layer);
     G.ticker.add(() => {
@@ -370,7 +378,11 @@
     if (!(entrance === "draw" && anim)) { penBusy = false; bakePieces(); }
   }
   // put every creature back on its square; ones in the middle of a move are left alone
-  function relayout() { for (const el of layer.children) if (el.__at != null && !el.__away && !(G && G.isTweening(el))) place(el, el.__at); }
+  // the width is read once, not between one creature's new place and the next
+  function relayout() {
+    camW = cam.clientWidth;
+    try { for (const el of layer.children) if (el.__at != null && !el.__away && !(G && G.isTweening(el))) place(el, el.__at); } finally { camW = 0; }
+  }
 
   // once a creature is drawn it moves onto a canvas (see creatures.js), or when nothing moves its strokes
   // become pictures; either twice as sharp as the biggest creature on screen so the camera can lean in,
@@ -4642,7 +4654,7 @@
     }
 
     const dashAll = (els) => els.flatMap((el) => [...(el.tagName === "path" ? [el] : el.querySelectorAll("path"))]).map((p) => {
-      const L = p.getTotalLength ? p.getTotalLength() : 600;
+      const L = CR.lengthOf(p);
       p.style.strokeDasharray = `${L} ${L}`;
       return [p, L];
     });

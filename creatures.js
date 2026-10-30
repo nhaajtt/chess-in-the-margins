@@ -404,6 +404,23 @@
     if (limbs.length) G.to(limbs, { rotation: 0, scaleY: 1, duration: 0.25, ease: "power2.out", overwrite: "auto" });
   }
 
+  // how long a pen stroke is, measured on a path off the page: asking the one on the page makes the
+  // browser restyle everything first, and creatures of one kind share their strokes, so each is measured once
+  const lengths = new Map();
+  let ruler = null;
+  function lengthOf(p) {
+    const d = p.getAttribute("d") || "";
+    let L = lengths.get(d);
+    if (L == null) {
+      ruler = ruler || document.createElementNS("http://www.w3.org/2000/svg", "path");
+      ruler.setAttribute("d", d);
+      L = ruler.getTotalLength();
+      if (!L && p.isConnected) L = p.getTotalLength();
+      if (lengths.size > 20000) lengths.clear();
+      lengths.set(d, L);
+    }
+    return L;
+  }
   // the pen draws the outline, then the crayon colours it in
   function drawIn(c, at = 0, dur = 0.9) {
     const G = root.gsap;
@@ -411,7 +428,7 @@
     const outlines = [...c.svg.querySelectorAll(".ol path")];
     const fills = [...c.svg.querySelectorAll(".fl")];
     const faceBits = [...c.face.querySelectorAll("path")];
-    outlines.forEach((p) => { const L = p.getTotalLength(); p.style.strokeDasharray = `${L} ${L}`; p.style.strokeDashoffset = `${L}`; });
+    outlines.map(lengthOf).forEach((L, i) => { const p = outlines[i]; p.style.strokeDasharray = `${L} ${L}`; p.style.strokeDashoffset = `${L}`; });
     fills.forEach((p) => { p.style.opacity = "0"; });
     G.set(c.face, { opacity: 0 });
     const tl = G.timeline({ delay: at, onComplete: () => { outlines.forEach((p) => { p.style.strokeDasharray = ""; p.style.strokeDashoffset = ""; }); fills.forEach((p) => { p.style.opacity = ""; }); } });
@@ -959,9 +976,11 @@
     // does the creature's whole canvas land on the stage?
     function inside(c, m) {
       const [x0, y0, ppu] = c.at, x1 = x0 + c.cv.width / ppu, y1 = y0 + c.cv.height / ppu;
-      for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) {
-        const p = m.transformPoint({ x, y });
-        if (p.x < 0 || p.y < 0 || p.x > cv.width || p.y > cv.height) return false;
+      const W = cv.width, H = cv.height;
+      for (let i = 0; i < 4; i++) {
+        const x = i & 1 ? x1 : x0, y = i & 2 ? y1 : y0;
+        const px = m.a * x + m.c * y + m.e, py = m.b * x + m.d * y + m.f;
+        if (px < 0 || py < 0 || px > W || py > H) return false;
       }
       return true;
     }
@@ -1079,5 +1098,5 @@
     return urls;
   }
 
-  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, bake, unbake, toCanvas, offCanvas, paint, stage, box, flatten, release, pen, E, INK, SPECS };
+  root.Creature = { make, setFace, restFace, live, walk, settle, drawIn, lengthOf, bake, unbake, toCanvas, offCanvas, paint, stage, box, flatten, release, pen, E, INK, SPECS };
 })(typeof window !== "undefined" ? window : this);

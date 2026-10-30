@@ -46,8 +46,9 @@ button { font: inherit; color: inherit; }
 .cx-cam { position: relative; isolation: isolate; will-change: transform; width: var(--S); aspect-ratio: 920 / 880; transform-origin: 50% 50%; }
 /* the tilt and the spin are driven from game.js, so the camera can come down and the board can turn */
 .cx-board { position: absolute; inset: 0; transform: perspective(1400px) rotateX(var(--tilt-now, var(--tilt))) rotateZ(var(--spin, 0deg)); transform-origin: 50% 50%; outline: none; }
-/* boiling lines: each drawing exists three times and only one copy shows per frame */
-[data-boil="0"] .f1, [data-boil="0"] .f2, [data-boil="1"] .f0, [data-boil="1"] .f2, [data-boil="2"] .f0, [data-boil="2"] .f1 { visibility: hidden; }
+/* boiling lines: each drawing exists three times and only one copy shows per frame; the others are
+   faded out rather than hidden, since hiding is handed down to every stroke and each one restyled */
+[data-boil="0"] .f1, [data-boil="0"] .f2, [data-boil="1"] .f0, [data-boil="1"] .f2, [data-boil="2"] .f0, [data-boil="2"] .f1 { opacity: 0; }
 .cx-board__ink, .cx-board__marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .cx-board__marks { pointer-events: none; }
 .cx-label { font: 400 46px var(--hand); }
@@ -66,7 +67,7 @@ button { font: inherit; color: inherit; }
 .cr { display: block; width: 100%; height: auto; overflow: visible; pointer-events: none; }
 .cr-canvas { display: block; height: auto; max-width: none; pointer-events: none; }
 .cr-stage { position: absolute; z-index: 1; pointer-events: none; }
-[data-cboil="0"] .cr .f1, [data-cboil="1"] .cr .f0 { visibility: hidden; }
+[data-cboil="0"] .cr .f1, [data-cboil="1"] .cr .f0 { opacity: 0; }
 .cx-tray .cr { width: 40px; height: 40px; }
 .cx-promo__row .cr { width: 100%; height: 100%; }
 /* sweat drops falling off a worried creature */
