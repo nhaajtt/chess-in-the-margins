@@ -8,9 +8,10 @@
   const reduce = root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const R = (a, b) => a + Math.random() * (b - a);
 
+  const SKIES = ["clear", "cloud", "fog", "drizzle", "rain", "storm", "snow"];
   function ask() {
     const q = new URLSearchParams(location.search).get("weather");
-    if (q) return Promise.resolve(q === "wind" ? { sky: "clear", wind: true } : { sky: q, wind: false });
+    if (q) return Promise.resolve(q === "wind" ? { sky: "clear", wind: true } : { sky: SKIES.includes(q) ? q : "clear", wind: false });
     return fetch("/api/weather", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => j || { sky: "clear", wind: false });
   }
   function canvas() {
@@ -76,7 +77,7 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); else start(); });
 
   W.ready = ask().then((j) => {
-    W.sky = j.sky || "clear"; W.wind = Boolean(j.wind);
+    W.sky = SKIES.includes(j.sky) ? j.sky : "clear"; W.wind = Boolean(j.wind);
     document.body.dataset.weather = W.sky + (W.wind ? " wind" : "");
     seed();
     start();

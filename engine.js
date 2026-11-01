@@ -78,7 +78,12 @@
       return `${rows.join("/")} ${this.turn ? "b" : "w"} ${c || "-"} ${this.ep >= 0 ? name(this.ep) : "-"} ${this.half} ${this.full}`;
     }
     // position identity for repetition: everything but the move counters
-    key() { return this.fen().split(" ").slice(0, 4).join(" "); }
+    // (the en passant square only counts when a pawn can really take there, as the rules say)
+    key() {
+      const [rows, turn, cast] = this.fen().split(" ");
+      const ep = this.ep >= 0 && this.moves().some((m) => m.flags & F_EP) ? name(this.ep) : "-";
+      return `${rows} ${turn} ${cast} ${ep}`;
+    }
 
     get(sq) { return this.board[sq]; }
 

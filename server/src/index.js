@@ -11,6 +11,7 @@ const ROOM_TTL = 24 * 3600 * 1000; // a room is cleared a day after anyone last 
 const MAX_MSG = 600; // bytes
 const RATE = { per: 1000, max: 12 }; // messages per second per socket
 const EMOTES = new Set(["wave", "laugh", "grr", "yawn", "love", "shock"]);
+const MAX_SOCKETS = 64; // two players and a small crowd; more than that is someone hammering the room
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
@@ -26,11 +27,18 @@ function cors(env, req) {
     : {};
 }
 const newCode = () => {
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-  return [...bytes].map((b) => ALPHABET[b % ALPHABET.length]).join("");
+  // byte values past the last full run of the alphabet are drawn again, so every letter is equally likely
+  const limit = 256 - (256 % ALPHABET.length);
+  let code = "";
+  while (code.length < 6) for (const b of crypto.getRandomValues(new Uint8Array(8))) if (b < limit && code.length < 6) code += ALPHABET[b % ALPHABET.length];
+  return code;
 };
 const newToken = () => [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
-const cleanName = (s) => String(s || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 20) || "a friend";
+// no control characters, and no invisible or direction-flipping ones that could dress a name up as someone else's
+const cleanName = (s) =>
+  (typeof s === "string" ? s : "")
+    .replace(/[\u0000-\u001f\u007f-\u009f<>\u00ad\u061c\u115f\u1160\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufeff\uffa0\ufff0-\uffff]/g, "")
+    .trim().slice(0, 20).trim() || "a friend";
 
 export default {
   async fetch(req, env) {
@@ -41,6 +49,11 @@ export default {
     // POST /rooms: open a new room and hand back its code
     if (url.pathname === "/rooms" && req.method === "POST") {
       if (!allowedOrigin(env, req.headers.get("origin"))) return json({ error: "origin not allowed" }, 403);
+      // a few new rooms a minute per address is plenty for people; more is a script filling up storage
+      if (env.OPEN_LIMIT) {
+        const { success } = await env.OPEN_LIMIT.limit({ key: req.headers.get("cf-connecting-ip") || "unknown" });
+        if (!success) return json({ error: "too many new rooms, wait a minute" }, 429, h);
+      }
       for (let i = 0; i < 5; i++) {
         const code = newCode();
         const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
@@ -116,6 +129,7 @@ export class Room {
       return json({ players: d.players.map((p) => ({ name: p.name, color: p.color })), moves: d.moves.length, result: d.result, full: d.players.length >= 2 });
     }
     if (url.pathname === "/ws") {
+      if (this.state.getWebSockets().length >= MAX_SOCKETS) return json({ error: "this room is full" }, 503);
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
       pair[1].serializeAttachment({ token: null, color: null, name: null, hits: [] });
@@ -155,14 +169,17 @@ export class Room {
     ws.serializeAttachment(att);
     let msg;
     try { msg = JSON.parse(raw); } catch { return this.send(ws, { t: "error", msg: "bad message" }); }
+    if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.t !== "string") return this.send(ws, { t: "error", msg: "bad message" });
     const d = await this.load();
     if (!d) return this.send(ws, { t: "error", msg: "no such room" });
 
     if (msg.t === "hello") {
       // a returning player keeps their seat; a newcomer takes a free seat; everyone else watches
-      let seat = typeof msg.token === "string" ? d.players.find((p) => p.token === msg.token) : null;
+      // a socket that has already said hello keeps what it got, so saying it twice never takes the second seat too
+      const byToken = (t) => (typeof t === "string" && d.players.find((p) => p.token === t)) || null;
+      let seat = byToken(msg.token) || byToken(att.token);
       if (seat && msg.name) seat.name = cleanName(msg.name);
-      if (!seat && d.players.length < 2) {
+      if (!seat && !att.color && d.players.length < 2) {
         const color = d.players.length === 0 ? (crypto.getRandomValues(new Uint8Array(1))[0] & 1 ? "w" : "b") : (d.players[0].color === "w" ? "b" : "w");
         seat = { token: newToken(), name: cleanName(msg.name), color };
         d.players.push(seat);
@@ -202,6 +219,7 @@ export class Room {
       this.broadcast({ t: "move", from: m.from, to: m.to, promo: m.promo || 0, san, ply: d.moves.length, result: d.result });
       return;
     }
+    if ((msg.t === "resign" || msg.t === "draw") && d.players.length < 2) return this.send(ws, { t: "error", msg: "wait for your friend" });
     if (msg.t === "resign") {
       if (d.result) return;
       d.result = { result: att.color === "w" ? "0-1" : "1-0", reason: "resigned" };

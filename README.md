@@ -186,8 +186,11 @@ No framework and no build step: just HTML, CSS and plain JavaScript in a handful
 | `puzzles.js` | Forty mate-in-two puzzles from the Lichess puzzle database (CC0). |
 | `sw.js`, `manifest.webmanifest` | The offline copy and the install details. |
 | `vendor/` | GSAP and rough.js, served from the site itself so the game works offline (GSAP under its standard no-charge license, rough.js under MIT). |
-| `server/` | The online rooms: a Cloudflare Worker with one Durable Object per room. It keeps the real game, checks every move with the same `engine.js`, talks over WebSockets, only accepts the game's own pages, rate-limits each socket and forgets a room a day after it was last used. |
+| `server/` | The online rooms: a Cloudflare Worker with one Durable Object per room. It keeps the real game, checks every move with the same `engine.js`, talks over WebSockets, only accepts the game's own pages, limits new rooms per visitor, sockets per room and messages per socket, and forgets a room a day after it was last used. |
 | `scripts/perft.mjs` | Checks the move generator against the standard perft counts. |
+| `scripts/rules.mjs` | Checks mate, stalemate, repetition, the fifty-move rule, castling, en passant and promotion. |
+| `scripts/site-check.mjs` | Checks that every file the page and the offline copy need exists, and that the security headers match what the page uses. |
+| `server/test/` | Checks the rooms: seats, turns, tokens, junk messages, floods and origins. |
 
 The move generator matches the published perft numbers:
 
@@ -203,13 +206,16 @@ position 4      depth 3     9 467
 ```bash
 git clone https://github.com/nhaajtt/chess-in-the-margins.git
 cd chess-in-the-margins
-python -m http.server 8000      # or any static server
-# open http://localhost:8000
+python -m http.server 5190 --bind 127.0.0.1
+# open http://localhost:5190
 
-node scripts/perft.mjs          # check the rules
+npm test                        # the rules, the site and the rooms
+
+# online rooms on this machine (the page talks to them when opened on localhost)
+cd server && npm ci && npm run dev
 ```
 
-The live site is deployed on Vercel from `main`; `vercel.json` sets the security headers.
+Every push runs the checks on GitHub Actions. The live site is deployed on Vercel from `main`; `vercel.json` sets the security headers. The rooms are deployed with `npm run deploy` in `server/`.
 
 
 

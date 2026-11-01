@@ -1,8 +1,8 @@
 /* Keeps a copy of the game on the device so it opens and plays without a connection (against the computer, two
-   on one screen, or the daily puzzles; playing online still needs the internet). Pages are fetched fresh when
-   possible and fall back to the copy; everything else comes from the copy and is refreshed in the background.
+   on one screen, or the daily puzzles; playing online still needs the internet). Pages, scripts and styles are fetched fresh when
+   possible and fall back to the copy; sounds, pictures and fonts come from the copy and are refreshed in the background.
    Bump VERSION when the list changes. */
-const VERSION = "citm-5";
+const VERSION = "citm-6";
 const CORE = [
   "/",
   "/chess.css",
@@ -121,7 +121,13 @@ self.addEventListener("fetch", (e) => {
   if (!same && !font) return;
   if (same && url.pathname.startsWith("/api/")) return;
   if (req.mode === "navigate") {
-    e.respondWith(fetch(req).then((r) => { const copy = r.clone(); caches.open(VERSION).then((c) => c.put("/", copy)); return r; }).catch(() => caches.match("/")));
+    // only a good, direct answer becomes the offline copy: never an error page or a redirect
+    e.respondWith(fetch(req).then((r) => { if (r.ok && !r.redirected && r.type === "basic") { const copy = r.clone(); caches.open(VERSION).then((c) => c.put("/", copy)); } return r; }).catch(() => caches.match("/")));
+    return;
+  }
+  // the page's own code and styles come fresh when the network answers, so a new page never runs with old scripts
+  if (same && /\.(js|css|webmanifest)$/.test(url.pathname)) {
+    e.respondWith(fetch(req).then((r) => { if (r.ok) { const copy = r.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); } return r; }).catch(() => caches.match(req).then((hit) => hit || Response.error())));
     return;
   }
   e.respondWith(caches.match(req).then((hit) => {

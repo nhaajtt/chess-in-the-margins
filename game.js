@@ -2613,7 +2613,7 @@
     if (!quiet) { armIdle(); return; }
     const SPECIAL = { bored, ufo, rain, stranger };
     const askedName = !askedDone ? new URLSearchParams(location.search).get("scene") : null;
-    if (askedName && SPECIAL[askedName]) { askedDone = true; if (SPECIAL[askedName]()) return; }
+    if (askedName && Object.prototype.hasOwnProperty.call(SPECIAL, askedName)) { askedDone = true; if (SPECIAL[askedName]()) return; }
     if (!boredDone && stamp() - lastMoveAt > 30000) { boredDone = true; if (bored()) return; }
     if (rareKind && !rareDone && game.played.length >= 2) { rareDone = true; if (SPECIAL[rareKind]()) return; }
     let order = SKITS.map((_, i) => i).filter((i) => i !== lastSkit).sort(() => Math.random() - 0.5);
@@ -3824,7 +3824,9 @@
   const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "http://localhost:8787" : "https://chess-rooms.chess-rooms.workers.dev";
   const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
   const net = { ws: null, code: null, ready: false, pending: false, players: [], spectators: 0, tries: 0, closing: false, timer: 0, queue: Promise.resolve(), offline: new Set() };
-  const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private window */ } } };
+  // a copy in memory as well, so a browser that blocks storage still keeps its seat for as long as the page is open
+  const kept = new Map();
+  const store = { get: (k) => { try { const v = localStorage.getItem(k); if (v !== null) return v; } catch { /* private window */ } return kept.has(k) ? kept.get(k) : null; }, set: (k, v) => { kept.set(k, v); try { localStorage.setItem(k, v); } catch { /* private window */ } } };
   const myName = $("my-name");
   if (myName) myName.value = store.get("chess-name") || "";
 

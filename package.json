@@ -5,7 +5,7 @@
   "description": "Chess drawn in ballpoint on a sheet of paper, where every piece is a creature and captures get personal.",
   "license": "MIT",
   "scripts": {
-    "start": "python -m http.server 8000",
-    "test": "node scripts/perft.mjs"
+    "start": "python -m http.server 5190 --bind 127.0.0.1",
+    "test": "node scripts/perft.mjs && node --test scripts/rules.mjs scripts/site-check.mjs server/test/room.test.mjs"
   }
 }

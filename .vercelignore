@@ -1,6 +1,11 @@
 media
+shots
 scripts
+server
+.github
+.env*
+.dev.vars*
+.vercel
 README.md
 LICENSE
 package.json
-server

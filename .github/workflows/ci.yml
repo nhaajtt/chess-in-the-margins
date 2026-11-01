@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Syntax of every script
+        run: for f in *.js api/*.js server/src/*.js scripts/*.mjs server/test/*.mjs; do node --check "$f"; done
+
+      - name: Move generator (perft)
+        run: node scripts/perft.mjs
+
+      - name: Game rules
+        run: node --test scripts/rules.mjs
+
+      - name: Site integrity and security headers
+        run: node --test scripts/site-check.mjs
+
+      - name: Rooms server
+        run: node --test server/test/room.test.mjs
+
+      - name: Rooms server dependencies
+        working-directory: server
+        run: |
+          npm ci --ignore-scripts --no-fund
+          npm audit --audit-level=low
+          npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"

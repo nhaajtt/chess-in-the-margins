@@ -39,7 +39,7 @@
   function pick(now = new Date()) {
     let asked = null;
     try { asked = new URLSearchParams(location.search).get("theme"); } catch { /* no address */ }
-    if (asked !== null) return THEMES[asked] ? asked : null;
+    if (asked !== null) return Object.prototype.hasOwnProperty.call(THEMES, asked) ? asked : null;
     const n = new Date(now.getFullYear(), now.getMonth(), now.getDate()), y = n.getFullYear();
     if (THEMES.birthday.when(n, y)) return "birthday";
     for (const id in THEMES) if (THEMES[id].when(n, y)) return id;

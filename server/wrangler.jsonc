@@ -9,7 +9,9 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
   "vars": {
-    "ALLOWED_ORIGINS": "https://chess.nhaajt.com,http://localhost:5190"
+    "ALLOWED_ORIGINS": "https://chess.nhaajt.com"
   },
+  // new rooms per visitor address: 10 a minute
+  "ratelimits": [{ "name": "OPEN_LIMIT", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
   "observability": { "enabled": true }
 }
