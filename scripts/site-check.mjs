@@ -64,7 +64,7 @@ test("no inline scripts or handlers that the policy would block", () => {
 test("nothing private is tracked or shipped", () => {
   const files = execSync("git ls-files", { cwd: root }).toString().trim().split("\n");
   for (const f of files) assert.ok(!/(^|\/)\.env(\.|$)|\.pem$|\.key$|\.dev\.vars$|(^|\/)\.vercel\//.test(f), `${f} should not be in git`);
-  const text = files.filter((f) => /\.(js|mjs|json|jsonc|html|css|md|webmanifest|yml)$/.test(f) && !f.startsWith("vendor/") && !f.endsWith("package-lock.json"));
+  const text = files.filter((f) => /\.(js|mjs|json|jsonc|html|css|md|webmanifest|yml)$/.test(f) && !f.startsWith("vendor/") && !f.endsWith("package-lock.json") && f !== "scripts/site-check.mjs");
   const secret = /(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{30,}|github_pat_|sk-[A-Za-z0-9]{20,}|xox[bap]-|eyJhbGciOi[A-Za-z0-9_-]{20,}|VERCEL_OIDC_TOKEN=|CLOUDFLARE_API_TOKEN=\S)/;
   for (const f of text) assert.ok(!secret.test(read(f)), `${f} looks like it holds a secret`);
   const ignore = read(".vercelignore");
