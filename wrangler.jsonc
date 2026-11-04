@@ -1,0 +1,16 @@
+{
+  "name": "chess-in-the-margins",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/r/*"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "main": "worker.js"
+}
