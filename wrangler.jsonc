@@ -9,6 +9,7 @@
       "/r/*"
     ]
   },
+  "routes": [{ "pattern": "chess.nhaajt.com", "custom_domain": true }],
   "observability": {
     "enabled": true
   },
