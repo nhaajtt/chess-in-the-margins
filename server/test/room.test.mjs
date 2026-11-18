@@ -205,7 +205,7 @@ test("names lose control, markup and direction-flipping characters", async () =>
 
 test("a room takes only so many sockets", async () => {
   const r = await openRoom();
-  for (let i = 0; i < 64; i++) r.sockets.push(new FakeSocket());
+  for (let i = 0; i < 64; i++) { const w = new FakeSocket(); w.serializeAttachment({ color: "w" }); r.sockets.push(w); }
   const res = await r.room.fetch(new Request("https://room/ws"));
   assert.equal(res.status, 503);
 });
@@ -229,7 +229,7 @@ test("the front door checks origins, codes and the room limit", async () => {
   assert.equal((await open("https://chess.nhaajt.com")).status, 429);
   const ws = (origin) => worker.fetch(new Request("https://x/rooms/ABCDEF/ws", { headers: { upgrade: "websocket", ...(origin ? { origin } : {}) } }), env);
   assert.equal((await ws("https://evil.example")).status, 403);
-  assert.equal((await worker.fetch(new Request("https://x/rooms/ABCDE0"), env)).status, 404);
+  assert.equal((await worker.fetch(new Request("https://x/rooms/ABCDE0", { headers: { origin: "https://chess.nhaajt.com" } }), env)).status, 404);
   const evil = await worker.fetch(new Request("https://x/rooms/ABCDEF", { headers: { origin: "https://evil.example" } }), env);
   assert.equal(evil.headers.get("access-control-allow-origin"), null);
 });
@@ -272,14 +272,17 @@ function makeMatchEnv({ limit } = {}) {
   if (limit) env.OPEN_LIMIT = limit;
   const lobby = new Lobby(state, env);
   env.LOBBY = { idFromName: (n) => n, get: () => ({ fetch: (u, init) => lobby.fetch(new Request(u, init)) }) };
+  // the owner of a waiting room connects: from then on the room may be offered
+  const goLive = (code) => lobby.fetch(new Request("https://lobby/waiting", { method: "POST", body: JSON.stringify({ code }) }));
   const match = (ip, extra = {}) =>
     worker.fetch(new Request("https://x/match", { method: "POST", headers: { origin: ORIGIN, "cf-connecting-ip": ip }, ...extra }), env);
-  return { env, rooms, store, lobby, match };
+  return { env, rooms, store, lobby, match, goLive };
 }
 
 test("two visitors are put in the same room, a third gets a new one", async () => {
-  const { match, rooms } = makeMatchEnv();
+  const { match, rooms, goLive } = makeMatchEnv();
   const a = await (await match("1.1.1.1")).json();
+  await goLive(a.code);
   assert.equal(a.waiting, true);
   assert.match(a.code, /^[A-HJ-NP-Z2-9]{6}$/);
   assert.deepEqual(rooms.get(a.code), { match: true, code: a.code });
@@ -299,16 +302,20 @@ test("the same visitor twice is never paired with themself", async () => {
 });
 
 test("two visitors asking at the same moment still end up together", async () => {
-  const { match } = makeMatchEnv();
-  const [a, b] = await Promise.all([match("1.1.1.1"), match("2.2.2.2")].map(async (p) => (await p).json()));
-  assert.equal(a.code, b.code);
+  const { match, goLive } = makeMatchEnv();
+  const a = await (await match("1.1.1.1")).json();
+  await goLive(a.code);
+  const [b, c] = await Promise.all([match("2.2.2.2"), match("3.3.3.3")].map(async (p) => (await p).json()));
+  // one of them gets the waiting room, the other opens a room of their own
+  assert.equal([b, c].filter((x) => x.code === a.code && !x.waiting).length, 1);
 });
 
 test("waiting rooms go stale after a minute", async () => {
-  const { match } = makeMatchEnv();
+  const { match, goLive } = makeMatchEnv();
   const real = Date.now;
   try {
     const a = await (await match("1.1.1.1")).json();
+    await goLive(a.code);
     Date.now = () => real() + 61000;
     const b = await (await match("2.2.2.2")).json();
     assert.equal(b.waiting, true);
@@ -317,13 +324,15 @@ test("waiting rooms go stale after a minute", async () => {
 });
 
 test("a room that filled up or lost its player is not offered", async () => {
-  const { match, lobby } = makeMatchEnv();
+  const { match, lobby, goLive } = makeMatchEnv();
   const tell = (path, code) => lobby.fetch(new Request("https://lobby" + path, { method: "POST", body: JSON.stringify({ code }) }));
   const a = await (await match("1.1.1.1")).json();
+  await goLive(a.code);
   await tell("/left", a.code);
   const b = await (await match("2.2.2.2")).json();
   assert.equal(b.waiting, true);
   assert.notEqual(b.code, a.code);
+  await goLive(b.code);
   await tell("/filled", b.code);
   const c = await (await match("3.3.3.3")).json();
   assert.notEqual(c.code, b.code);
@@ -334,7 +343,7 @@ test("the lobby keeps only a code, a one-way tag and a time", async () => {
   await match("1.1.1.1");
   const q = store.get("q");
   assert.equal(q.length, 1);
-  assert.deepEqual(Object.keys(q[0]).sort(), ["at", "code", "visitor"]);
+  assert.deepEqual(Object.keys(q[0]).sort(), ["at", "code", "live", "visitor"]);
   assert.ok(!JSON.stringify(q).includes("1.1.1.1"));
 });
 
@@ -374,13 +383,13 @@ test("a matchmaking room tells the lobby when it fills or its player leaves", as
   r.room.env = { LOBBY: { idFromName: (n) => n, get: () => ({ fetch: async (u, i) => { told.push(new URL(u).pathname + JSON.parse(i.body).code); return new Response("{}"); } }) } };
   await r.room.fetch(new Request("https://room/init", { method: "POST", body: JSON.stringify({ match: true, code: "ABCDEF" }) }));
   const a = await r.join({ name: "Ann" });
-  assert.deepEqual(told, []);
+  assert.deepEqual(told, ["/waitingABCDEF"]);
   a.close();
   await r.room.webSocketClose(a);
-  assert.deepEqual(told, ["/leftABCDEF"]);
+  assert.deepEqual(told, ["/waitingABCDEF", "/leftABCDEF"]);
   await r.join({ name: "Bob" });
   await r.join({ name: "Cy" });
-  assert.deepEqual(told, ["/leftABCDEF", "/filledABCDEF"]);
+  assert.deepEqual(told, ["/waitingABCDEF", "/leftABCDEF", "/filledABCDEF"]);
   // junk in the init body never makes a room a matchmaking one
   const plain = makeRoom();
   await plain.room.fetch(new Request("https://room/init", { method: "POST", body: JSON.stringify({ match: true, code: "bad" }) }));
