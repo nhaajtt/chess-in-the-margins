@@ -89,3 +89,11 @@ test("no move ever leaves your own king in check", () => {
   const g = new Game("4k3/8/8/8/8/8/4r3/4K3 w - - 0 1");
   for (const m of g.moves()) { g.make(m); assert.ok(!g.attacked(g.kings[0], 1)); g.unmake(m); }
 });
+
+test("a position that claims castling without the castle at home does not castle", () => {
+  const g = new Game("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 1");
+  assert.ok(!g.moves().some((m) => m.flags & (F_KCASTLE | F_QCASTLE)));
+  assert.equal(g.fen().split(" ")[2], "-");
+  const h = new Game("r3k3/8/8/8/8/8/8/4K2R w KQkq - 0 1");
+  assert.equal(h.fen().split(" ")[2], "Kq");
+});

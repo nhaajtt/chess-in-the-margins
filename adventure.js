@@ -144,7 +144,7 @@
     vi: [
       "Ngôi sao vàng từ giữa trang giấy bay xuống, ấm như bánh mì nướng, và đậu vào tay bạn.",
       "Bạn giơ nó lên. Một mặt sáng màu cam, một mặt sáng màu tím, vì nó chưa bao giờ chỉ có một màu.",
-      "Thế là bạn treo nó lại giữa trang, để cả Đồng Cỏ Cam và Lọ Mực Tím đều nhìn thấy. Hai vị vua chia nhau một tách ca cao, và không ai hét MỚI CỦA TÔI nữa. À, chỉ còn hét một chút thôi.",
+      "Thế là bạn treo nó lại giữa trang, để cả Đồng Cỏ Cam và Lọ Mực Tím đều nhìn thấy. Hai vị vua chia nhau một tách ca cao, và không ai hét CỦA TÔI nữa. À, chỉ còn hét một chút thôi.",
     ],
   };
 

@@ -122,7 +122,7 @@ test("the look back marks a known blunder and sums up each team", async (g) => {
 });
 
 // Known bug, not fixed here: review.js sets the "no moves" sentence (line 185) and then show(n) at line 347 replaces it with an empty string (line 209).
-todo("the look back with nothing played says so", "review.js:185 is overwritten by review.js:209", async (g) => {
+test("the look back with nothing played says so", async (g) => {
   await g.open({ mode: "friend" });
   await g.press("look-back-btn");
   await g.waitFor(`document.getElementById("review-dialog").open`);

@@ -206,7 +206,7 @@
     let ply = n;   // how many moves are on the board
     const lastWord = (i) => {
       const mv = data.moves[i - 1];
-      if (!mv) return n ? "The start of the game." : "";
+      if (!mv) return n ? "The start of the game." : "There are no moves to look at yet. Play a few and come back.";
       const k = Math.ceil(i / 2);
       let t = `Move ${k}, ${TEAM[mv.by]}: ${mv.san}.`;
       const mk = data.marks[i - 1];
@@ -345,6 +345,8 @@
     drawList();
     if (!d.open) d.showModal();
     show(n);
+    // a button that was just switched off cannot hold the focus: hand it to one that can
+    if (!d.contains(document.activeElement) || document.activeElement.disabled) $("rv-close").focus();
 
     /* look at every position, one after another, and mark each move as soon as it can be judged */
     (async () => {

@@ -135,7 +135,8 @@ test("reduced motion: the creatures do not move on their own", async (g) => {
 
 test("the same page with motion allowed does move on its own", async (g) => {
   await g.open({ motion: true });
-  const snapshot = () => g.page.eval(`[...document.querySelectorAll("#pieces > *")].map((e) => e.style.transform).join("|")`);
-  const a = await snapshot();
-  await g.page.waitFor(`[...document.querySelectorAll("#pieces > *")].map((e) => e.style.transform).join("|") !== ${JSON.stringify(a)}`, { timeout: 60000, label: "the creatures to stir" });
+  // anything inside a creature counts: a breath or a blink moves a part of it, a wander moves the whole of it
+  const look = `document.getElementById("pieces").innerHTML`;
+  const a = await g.page.eval(look);
+  await g.page.waitFor(`${look} !== ${JSON.stringify(a)}`, { timeout: 60000, label: "the creatures to stir" });
 });

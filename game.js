@@ -3868,6 +3868,8 @@
 
   const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "http://localhost:8787" : "https://chess-rooms.chess-rooms.workers.dev";
   const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
+  // one message that goes wrong must not stop the ones after it
+  const report = (e) => { console.error(e); };
   const net = { ws: null, code: null, ready: false, pending: false, players: [], spectators: 0, tries: 0, closing: false, timer: 0, queue: Promise.resolve(), offline: new Set() };
   // a copy in memory as well, so a browser that blocks storage still keeps its seat for as long as the page is open
   const kept = new Map();
@@ -3982,12 +3984,12 @@
       human = msg.you === "w" ? 0 : msg.you === "b" ? 1 : -1;
       net.ready = true;
       onlineMsg(human < 0 ? "Both seats are taken, so you are watching." : "");
-      if ((human === 1) !== flipped || was !== human) net.queue = net.queue.then(() => { flipped = human === 1; drawBoard(); buildSquares(); relayout(); drawMarks(); statusLine(game.status()); });
+      if ((human === 1) !== flipped || was !== human) net.queue = net.queue.catch(report).then(() => { flipped = human === 1; drawBoard(); buildSquares(); relayout(); drawMarks(); statusLine(game.status()); });
       return;
     }
-    if (msg.t === "state") { net.queue = net.queue.then(() => applyState(msg)); return; }
+    if (msg.t === "state") { net.queue = net.queue.catch(report).then(() => applyState(msg)); return; }
     if (msg.t === "move") {
-      net.queue = net.queue.then(async () => {
+      net.queue = net.queue.catch(report).then(async () => {
         const m = game.moves().find((x) => x.from === msg.from && x.to === msg.to && (x.promo || 0) === (msg.promo || 0));
         if (!m || game.played.length !== msg.ply - 1) { await resyncFromServer(); return; }
         playMove(m);
@@ -4027,7 +4029,7 @@
       if (!p.online && !was) { net.offline.add(side); doze(side, true); if (side !== human && human >= 0) note(`${p.name}'s creatures doze off`); }
       if (p.online && was) { net.offline.delete(side); doze(side, false); if (side !== human && human >= 0) note(`${p.name} is back!`); }
     }
-    statusLine(game.status());
+    if (!over) statusLine(game.status());
   }
   function rebuildFrom(moves) {
     game = new Game();
@@ -4346,6 +4348,7 @@
   ];
   let stickers = {};
   try { stickers = JSON.parse(store.get("chess-stickers") || "{}") || {}; } catch { stickers = {}; }
+  if (typeof stickers !== "object" || Array.isArray(stickers)) stickers = {};
   const stickerBtn = $("stickers-btn");
   const paintStickers = () => { if (stickerBtn) stickerBtn.textContent = `stickers: ${Object.keys(stickers).length} of ${STICKERS.length}`; };
   paintStickers();
@@ -4494,6 +4497,7 @@
     const entry = { at: new Date().toISOString(), title: `A game ${against}`, lines, by: pick(["the owl", "the penguin", "the bee queen", "the wizard", "the acorn"]) };
     let all = [];
     try { all = JSON.parse(store.get(DIARY_KEY) || "[]"); } catch { all = []; }
+    if (!Array.isArray(all)) all = [];
     all.unshift(entry);
     store.set(DIARY_KEY, JSON.stringify(all.slice(0, 12)));
     const btn = $("diary");
@@ -4503,6 +4507,7 @@
   function openDiary(start = 0) {
     let all = [];
     try { all = JSON.parse(store.get(DIARY_KEY) || "[]"); } catch { all = []; }
+    if (!Array.isArray(all)) all = [];
     if (!all.length) return;
     let i = Math.max(0, Math.min(start, all.length - 1));
     let d = $("diary-book");

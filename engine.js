@@ -59,6 +59,14 @@
       });
       this.turn = turn === "b" ? 1 : 0;
       this.castling = (cast.includes("K") ? 1 : 0) | (cast.includes("Q") ? 2 : 0) | (cast.includes("k") ? 4 : 0) | (cast.includes("q") ? 8 : 0);
+      // a castling right only counts while its king and its castle still stand at home
+      const home = (sq, piece) => this.board[sq] === piece;
+      if (!home(4, K)) this.castling &= ~3;
+      if (!home(7, R)) this.castling &= ~1;
+      if (!home(0, R)) this.castling &= ~2;
+      if (!home(116, K | BLACK)) this.castling &= ~12;
+      if (!home(119, R | BLACK)) this.castling &= ~4;
+      if (!home(112, R | BLACK)) this.castling &= ~8;
       this.ep = ep && ep !== "-" ? parse(ep) : -1;
       this.half = Number(half || 0);
       this.full = Number(full || 1);

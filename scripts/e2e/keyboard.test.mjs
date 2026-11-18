@@ -156,7 +156,7 @@ test("the school's practice board is reachable by the keyboard and Escape puts a
 
 // Known bug, not fixed here: with no moves played, Review.open() (review.js:347) disables the very button the browser had just
 // focused, and the focus falls back to the page behind the dialog.
-todo("the look back opened on an empty game keeps the focus inside the dialog", "review.js:347 disables the focused button", async (g) => {
+test("the look back opened on an empty game keeps the focus inside the dialog", async (g) => {
   await g.open({ mode: "friend" });
   await g.page.eval(`document.getElementById("look-back-btn").focus()`);
   await g.page.key("Enter");

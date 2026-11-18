@@ -199,7 +199,7 @@ test("leaving a room puts the page back to a game of its own", { skipIf }, async
 // Known bug, not fixed here: when a room's result arrives (a draw agreed, a resignation), applyState() writes the result in the
 // status line through finish() and then immediately overwrites it with the turn text (game.js:4030, statusLine), so the page
 // says "Your move." or "Waiting for ..." about a game that is over.
-test("the status line says how an online game ended", { skipIf, timeout: 120000, todo: "game.js:4030 overwrites the result with statusLine()" }, async (a) => {
+test("the status line says how an online game ended", { skipIf, timeout: 120000 }, async (a) => {
   await a.open({ seed: { "chess-name": "Ann" } });
   await a.selectRadio("mode", "online");
   await a.press("room-create");
