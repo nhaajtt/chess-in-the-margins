@@ -76,7 +76,6 @@
     if (before) parent.insertBefore(g, before); else parent.append(g);
     return g;
   }
-  const tilt = (g, deg, ox, oy) => g.setAttribute("transform", `rotate(${deg} ${ox} ${oy})`);
 
   const PIECES = {
     santa(s, cx, top, w) {

@@ -9,6 +9,7 @@
     "test": "node scripts/perft.mjs && node --test scripts/rules.mjs scripts/site-check.mjs scripts/pgn.test.mjs scripts/puzzles.test.mjs scripts/adventure.test.mjs server/test/room.test.mjs server/test/hardening.test.mjs server/test/weather.test.mjs",
     "test:e2e": "node scripts/e2e/run.mjs",
     "test:e2e:online": "node scripts/e2e/run.mjs --online",
-    "test:all": "npm test && npm run test:e2e && npm run test:e2e:online"
+    "test:all": "npm run lint && npm test && npm run test:e2e && npm run test:e2e:online",
+    "lint": "npx --yes eslint@9.39.1 ."
   }
 }

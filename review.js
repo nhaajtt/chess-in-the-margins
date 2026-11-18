@@ -99,7 +99,7 @@
 
   // one short, plain sentence for a mistake or a blunder
   function explain(data, i, mark) {
-    const mv = data.moves[i], a = data.look[i];
+    const a = data.look[i];
     const g = new E.Game(data.fens[i]);
     const legal = g.moves();
     const bm = a.move && legal.find((x) => sameMove(a.move, x));

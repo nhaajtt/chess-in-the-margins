@@ -28,6 +28,9 @@ jobs:
       - name: Syntax of every script
         run: for f in *.js api/*.js server/src/*.js scripts/*.mjs scripts/e2e/*.mjs server/test/*.mjs; do node --check "$f"; done
 
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests (move generator, rules, site checks, notation, puzzles, adventure, rooms server)
         run: npm test
 

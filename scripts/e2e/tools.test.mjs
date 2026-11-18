@@ -1,7 +1,7 @@
 // Saving and loading games (PGN and FEN), the look back at a game, and the names of openings.
 import { e2e, assert } from "./harness.mjs";
 
-const { test, todo } = e2e();
+const { test } = e2e();
 
 const RUY = "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 *";
 const RUY_SANS = ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3", "d6", "c3", "O-O", "h3", "Nb8", "d4", "Nbd7"];

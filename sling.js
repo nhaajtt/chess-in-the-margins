@@ -88,7 +88,7 @@
     holder.setAttribute("aria-describedby", help.id);
     const tell = (t) => { live.textContent = ""; setTimeout(() => { live.textContent = t; }, 50); };
     const svg = holder.firstElementChild, q = (s) => svg.querySelector(s);
-    const ammoG = q(".sl__ammo"), back = q(".sl__band--back"), front = q(".sl__band--front"), frame = q(".sl__frame"), wood = q(".sl__wood");
+    const ammoG = q(".sl__ammo"), back = q(".sl__band--back"), front = q(".sl__band--front"), frame = q(".sl__frame");
     const trail = q(".sl__trail"), mark = q(".sl__mark"), flag = q(".sl__flag"), pct = q(".sl__pct"), grab = q(".sl__grab");
     const at = { x: REST.x, y: REST.y };
     let loaded = "pebble", broken = false, inFlight = false;

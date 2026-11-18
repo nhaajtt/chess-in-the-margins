@@ -1,7 +1,7 @@
 // Using the page with the keyboard alone: moving a creature, and every dialog opening, holding the focus, closing and giving the focus back.
 import { e2e, assert } from "./harness.mjs";
 
-const { test, todo } = e2e();
+const { test } = e2e();
 
 const active = (g) => g.page.eval(`(() => { const a = document.activeElement; return { tag: a.tagName, id: a.id, cls: a.className, label: a.getAttribute("aria-label") || (a.textContent || "").trim().slice(0, 40) }; })()`);
 const squareFocused = (g) => g.page.eval(`document.activeElement.classList.contains("cx-sq") ? document.activeElement.getAttribute("aria-label").slice(0, 2) : null`);

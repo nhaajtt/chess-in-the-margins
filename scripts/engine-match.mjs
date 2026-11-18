@@ -19,7 +19,7 @@ const OPENINGS = [
 ];
 
 function playGame(Newer, Older, fen, newIsWhite, ms) {
-  const g = new Newer.Game(fen), h = new Older.Game(fen);
+  const g = new Newer.Game(fen);
   for (let ply = 0; ply < 160; ply++) {
     const st = g.status();
     if (st.over) return st.result === "1/2-1/2" ? 0.5 : (st.result === "1-0") === newIsWhite ? 1 : 0;

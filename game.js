@@ -1881,8 +1881,6 @@
       const sr = document.querySelector(".cx-side").getBoundingClientRect();
       const sx0 = sr.left - dr.left;
       const rc = rough.svg(deco);
-      const ink2 = { stroke: "#3a3550", strokeWidth: 1.5, roughness: 1.1 };
-      const bottom = Math.min(H - 30, by1 + 330);
       const farL = Math.max(20, bx0 - 230), wideL = bx0 > 300;
       // a mover is drawn once around (0, 0) and positioned by GSAP
       const mover = (cls, draw) => { const g = svgEl("g", { class: cls }); draw(g); deco.append(g); return g; };
