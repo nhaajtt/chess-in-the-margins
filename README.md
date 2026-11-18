@@ -202,6 +202,7 @@ No framework and no build step: just HTML, CSS and plain JavaScript in a handful
 | `scripts/perft.mjs` | Checks the move generator against the standard perft counts. |
 | `scripts/rules.mjs` | Checks mate, stalemate, repetition, the fifty-move rule, castling, en passant and promotion. |
 | `scripts/site-check.mjs` | Checks that every file the page and the offline copy need exists, and that the security headers match what the page uses. |
+| `scripts/e2e/` | Plays the page in a headless Chrome: the rules on the board, clocks, puzzles, saving and loading, the story, storage, keyboard, phone size, reduced motion, offline, and two pages in a room. |
 | `server/test/` | Checks the rooms: seats, turns, tokens, junk messages, floods and origins. |
 
 The move generator matches the published perft numbers:
@@ -221,11 +222,16 @@ cd chess-in-the-margins
 python -m http.server 5190 --bind 127.0.0.1
 # open http://localhost:5190
 
+npm run lint                    # every script
 npm test                        # the rules, the site and the rooms
+npm run test:e2e                # the page itself, in a headless Chrome
+npm run test:e2e:online         # two pages playing through the rooms (needs server/ installed)
 
 # online rooms on this machine (the page talks to them when opened on localhost)
 cd server && npm ci && npm run dev
 ```
+
+`docs/architecture.md` maps the files and the sections of `game.js`; `CONTRIBUTING.md` has the ground rules.
 
 Every push runs the checks on GitHub Actions. The live site is deployed on Vercel from `main`; `vercel.json` sets the security headers. The rooms are deployed with `npm run deploy` in `server/`.
 
