@@ -778,13 +778,14 @@
       if (m.promo && !job.grown) growNow(mover, m);
       paintWorry();
     };
-    const prev = motion;
+    let prev = motion;
     motion = job;
     motions.push(job);
 
     job.shown = afterMove(m, san);
     const act = async () => {
-      if (prev) await prev.promise;
+      // the move before is let go of once it is over, or every move ever made would be kept, creatures and all
+      if (prev) { await prev.promise; prev = null; }
       if (job.done) return;
       const t = spot(m.to);
       camTo(t.x, t.y - t.w * 0.4, victim ? 1.14 : 1.05, victim ? 1.4 : 0.2);
