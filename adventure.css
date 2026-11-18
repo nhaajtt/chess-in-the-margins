@@ -28,7 +28,7 @@
 .adv-bi { margin: 0 0 10px; }
 .adv-bi p { margin: 0; }
 .adv-en { font-size: 19px; }
-.adv-vi { margin-top: 2px; font-size: 16px; color: var(--pen-blue); }
+.adv-vi { margin-top: 2px; font-family: "Patrick Hand", var(--hand); font-size: 16px; color: var(--pen-blue); }
 .adv-victory h3, .adv-ending h3 { color: var(--pen-red); }
 .adv-ending h3 { text-align: center; margin-bottom: 8px; }
 .adv-theend { text-align: center; margin: 12px 0 0; font: 700 22px var(--sketch); }

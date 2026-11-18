@@ -21,7 +21,7 @@
 .sch-bi { margin: 0 0 8px; }
 .sch-bi p { margin: 0; }
 .sch-en { font-size: 18px; }
-.sch-vi { margin-top: 2px; font-size: 15px; color: var(--pen-blue); }
+.sch-vi { margin-top: 2px; font-family: "Patrick Hand", var(--hand); font-size: 15px; color: var(--pen-blue); }
 .sch-count { margin: 6px 0 2px; font: 700 15px var(--hand); color: var(--pen-red); }
 .sch-task .sch-en { font-weight: 700; }
 
