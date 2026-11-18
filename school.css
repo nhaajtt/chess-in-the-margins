@@ -1,0 +1,62 @@
+/* How the creatures move: the lesson book and its small flat practice board. Uses the .cx-book sheet from chess.css. */
+.sch { width: min(600px, 94vw); overflow-y: auto; }
+.sch h2 { margin-bottom: 6px; }
+.sch h3 { margin: 0; font: 700 24px/1.2 var(--sketch); flex: 1 1 auto; min-width: 0; }
+
+/* the list of lessons */
+.sch-menu { list-style: none; margin: 0 0 14px; padding: 0 0 0 14px; border-left: 3px solid var(--pen-red); background: repeating-linear-gradient(to bottom, transparent 0, transparent 53px, rgba(60, 79, 184, 0.28) 53px, rgba(60, 79, 184, 0.28) 54px); }
+.sch-menu li { margin: 0; }
+.sch-row { appearance: none; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 54px; padding: 0 6px; border: 0; background: transparent; text-align: left; cursor: pointer; font: inherit; color: inherit; border-radius: 6px; }
+.sch-row:hover { background: rgba(232, 144, 42, 0.14); }
+.sch-names { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.sch-names b { font-weight: 700; font-size: 19px; }
+.sch-names i { font-style: normal; font-size: 15px; color: var(--ink-2); }
+.sch-tick { flex: none; width: 1.4em; text-align: center; font: 700 26px var(--sketch); color: var(--leaf); }
+.sch-art { flex: none; width: 40px; height: 40px; display: inline-block; }
+.sch-art svg { width: 100%; height: 100%; display: block; }
+.sch-art--big { width: 52px; height: 52px; }
+
+/* a lesson page */
+.sch-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.sch-bi { margin: 0 0 8px; }
+.sch-bi p { margin: 0; }
+.sch-en { font-size: 18px; }
+.sch-vi { margin-top: 2px; font-size: 15px; color: var(--pen-blue); }
+.sch-count { margin: 6px 0 2px; font: 700 15px var(--hand); color: var(--pen-red); }
+.sch-task .sch-en { font-weight: 700; }
+
+/* the practice board: eight by eight buttons */
+.sch-board { display: grid; grid-template-columns: repeat(8, 1fr); width: min(100%, 416px); margin: 8px auto; border: 2.5px solid var(--ink); border-radius: 6px; overflow: hidden; background: #fffdf6; }
+.sch-sq { appearance: none; position: relative; display: block; width: 100%; aspect-ratio: 1; min-width: 0; padding: 0; margin: 0; border: 0; border-radius: 0; cursor: pointer; font: inherit; color: var(--ink); }
+.sch-sq.is-light { background: #fffdf6; }
+.sch-sq.is-dark { background: rgba(60, 79, 184, 0.16); }
+.sch-sq:focus-visible { outline: 3px dashed var(--pen-red); outline-offset: -4px; border-radius: 0; }
+.sch-sq.is-sel { box-shadow: inset 0 0 0 3px var(--orange); }
+.sch-sq.is-dot { cursor: pointer; }
+.sch-co { position: absolute; left: 2px; top: 0; font: 400 11px/1.2 var(--hand); color: var(--ink-2); pointer-events: none; }
+.sch-piece { position: absolute; inset: 6%; pointer-events: none; }
+.sch-piece svg { width: 100%; height: 100%; display: block; }
+.sch-star { position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(18px, 6vw, 32px); line-height: 1; color: var(--orange); pointer-events: none; }
+.sch-rock { position: absolute; inset: 22%; border-radius: 40% 55% 45% 50%; background: var(--ink-2); border: 2px solid var(--ink); pointer-events: none; }
+.sch-dotmark { position: absolute; left: 50%; top: 50%; width: 26%; height: 26%; transform: translate(-50%, -50%); border-radius: 50%; background: var(--pen-blue); opacity: 0.8; pointer-events: none; }
+.sch-sq.is-dot:has(.sch-piece) .sch-dotmark, .sch-sq.is-dot:has(.sch-star) .sch-dotmark { width: 84%; height: 84%; background: transparent; border: 3px dashed var(--pen-blue); }
+
+.sch-say { min-height: 3.4em; margin-top: 4px; }
+.sch-say p { margin: 0; }
+.sch-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.sch-close { margin-top: 4px; }
+
+@media (max-width: 480px) {
+  .sch { padding: 16px 12px 14px; }
+  .sch h3 { font-size: 21px; }
+  .sch-en { font-size: 16px; }
+  .sch-vi { font-size: 14px; }
+  .sch-names b { font-size: 17px; }
+  .sch-art { width: 36px; height: 36px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sch-sq.is-sel .sch-piece { transform: translateY(-3px); transition: transform 0.15s; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sch .cx-btn { transition: none; }
+}

@@ -1,0 +1,64 @@
+/* The look back at the game (rv-) and the save and load dialog (pg-). They borrow the .cx-book dialog look from chess.css. */
+
+/* ---------- look back ---------- */
+.rv-dialog { width: min(980px, 96vw); }
+.rv-progress { margin: 4px 0 10px; color: var(--ink-2, #5d6170); min-height: 1.4em; }
+.rv-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-bottom: 12px; }
+@media (min-width: 720px) { .rv-main { grid-template-columns: minmax(0, 360px) minmax(0, 1fr); } }
+.rv-left, .rv-right { min-width: 0; }
+
+.rv-board { display: grid; grid-template: repeat(8, 1fr) / repeat(8, 1fr); width: min(100%, 360px); aspect-ratio: 1; margin: 0 auto; border: 2.5px solid #2b2f3a; border-radius: 6px; overflow: hidden; background: #fffdf6; }
+.rv-sq { position: relative; display: grid; place-items: center; background: #fffdf6; min-width: 0; min-height: 0; }
+.rv-sq--dark { background: #e6dfc9; }
+.rv-sq.is-move { background: #ffe99a; }
+.rv-sq--dark.is-move { background: #f4d56b; }
+.rv-sq svg { width: 92%; height: 92%; display: block; }
+
+.rv-nav { display: flex; justify-content: center; gap: 8px; margin: 10px 0 6px; }
+.rv-nav .cx-btn { min-width: 48px; min-height: 44px; }
+.rv-nav .cx-btn:disabled { opacity: 0.4; cursor: default; }
+.rv-now { margin: 4px 0 0; min-height: 4.2em; font-size: 17px; line-height: 1.3; }
+
+.rv-graph { display: block; width: 100%; height: auto; max-height: 130px; margin: 0 0 10px; background: #fffdf6; border: 2px solid #2b2f3a; border-radius: var(--wobbly, 12px); cursor: pointer; }
+.rv-area--orange { fill: #e8902a; fill-opacity: 0.45; stroke: none; }
+.rv-area--purple { fill: #7a4fb0; fill-opacity: 0.4; stroke: none; }
+.rv-mid { stroke: #5d6170; stroke-width: 1; stroke-dasharray: 5 5; vector-effect: non-scaling-stroke; }
+.rv-line { fill: none; stroke: #2b2f3a; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.rv-line--echo { stroke: #3c4fb8; stroke-width: 1.2; opacity: 0.6; }
+.rv-cursor { stroke: #c8452e; stroke-width: 2; vector-effect: non-scaling-stroke; }
+
+.rv-moves { list-style: none; margin: 0; padding: 4px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px 4px; max-height: 260px; overflow: auto; position: relative; border: 2px dashed #b9b29c; border-radius: 10px; }
+.rv-li { display: block; }
+.rv-li.has-note { flex-basis: 100%; }
+.rv-mv { appearance: none; background: transparent; border: 2px solid transparent; border-radius: 8px; min-height: 36px; padding: 2px 8px; font: 700 17px var(--hand, cursive); color: inherit; cursor: pointer; }
+.rv-mv:hover { background: #fffdf6; }
+.rv-mv.is-now { background: #ffe99a; border-color: #2b2f3a; }
+.rv-li--purple .rv-mv { color: #5a3a8a; }
+.rv-li--orange .rv-mv { color: #9a5a0c; }
+.rv-mark { margin-left: 4px; font-weight: 700; color: #c8452e; font-size: 19px; }
+.rv-mark--best-move, .rv-mark--good-move { color: #2f7d32; }
+.rv-mark--strong-move { color: #2f7d32; }
+.rv-teacher { display: block; margin: 0 8px 4px 12px; color: #c8452e; font-size: 15px; line-height: 1.3; transform: rotate(-0.4deg); }
+
+.rv-summary { display: grid; gap: 4px; margin: 0 0 14px; }
+.rv-team { margin: 0; padding: 6px 12px; border: 2px solid #2b2f3a; border-radius: var(--wobbly, 12px); background: #fffdf6; }
+.rv-team--orange { border-left: 10px solid #e8902a; }
+.rv-team--purple { border-left: 10px solid #7a4fb0; }
+
+@media (max-width: 480px) {
+  .rv-dialog { padding: 16px 12px 14px; }
+  .rv-moves { max-height: 200px; }
+}
+
+/* ---------- save and load ---------- */
+.pg-dialog { width: min(560px, 94vw); }
+.pg-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+.pg-label { display: block; margin: 4px 0 4px; font-weight: 700; }
+.pg-text { display: block; width: 100%; min-height: 130px; margin: 0 0 8px; padding: 8px 10px; resize: vertical; font: 400 15px/1.35 ui-monospace, Consolas, monospace; color: #2b2f3a; background: #fffdf6; border: 2px solid #2b2f3a; border-radius: 10px; }
+.pg-msg { margin: 0 0 12px; min-height: 1.4em; color: #2f7d32; }
+.pg-msg.is-bad { color: #c8452e; }
+.pg-hidden { position: fixed; left: -999px; top: 0; opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-teacher { transform: none; }
+}

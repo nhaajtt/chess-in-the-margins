@@ -2,7 +2,7 @@
    on one screen, or the daily puzzles; playing online still needs the internet). Pages, scripts and styles are fetched fresh when
    possible and fall back to the copy; sounds, pictures and fonts come from the copy and are refreshed in the background.
    Bump VERSION when the list changes. */
-const VERSION = "citm-6";
+const VERSION = "citm-7";
 const CORE = [
   "/",
   "/chess.css",
@@ -18,6 +18,19 @@ const CORE = [
   "/weather.js",
   "/puzzles.js",
   "/game.js",
+  "/thinker.js",
+  "/look.js",
+  "/match.js",
+  "/pgn.js",
+  "/review.js",
+  "/openings.js",
+  "/adventure.js",
+  "/school.js",
+  "/engine-worker.js",
+  "/look.css",
+  "/review.css",
+  "/adventure.css",
+  "/school.css",
   "/bake-worker.js",
   "/favicon.svg",
   "/manifest.webmanifest",

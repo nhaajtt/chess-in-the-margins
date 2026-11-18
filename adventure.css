@@ -1,0 +1,50 @@
+/* The golden star: the story book. It borrows the .cx-book sheet from chess.css and adds a contents page. */
+.adv { width: min(640px, 94vw); overflow-y: auto; }
+.adv h2 { margin-bottom: 6px; }
+.adv h3 { margin: 0; font: 700 24px/1.2 var(--sketch); }
+.adv .cx-book__sub { margin-bottom: 10px; }
+
+/* the contents page: ruled lines and a red margin, like the notebook */
+.adv-list { list-style: none; margin: 0 0 14px; padding: 0 0 0 14px; border-left: 3px solid var(--pen-red); background: repeating-linear-gradient(to bottom, transparent 0, transparent 57px, rgba(60, 79, 184, 0.28) 57px, rgba(60, 79, 184, 0.28) 58px); }
+.adv-item { margin: 0; }
+.adv-row { appearance: none; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 58px; padding: 0 6px; border: 0; background: transparent; text-align: left; cursor: pointer; font: inherit; color: inherit; border-radius: 6px; }
+.adv-row:hover:not(:disabled) { background: rgba(232, 144, 42, 0.14); }
+.adv-row:disabled { cursor: default; }
+.adv-num { flex: none; width: 1.6em; font: 700 22px var(--sketch); color: var(--pen-red); }
+.adv-art { flex: none; width: 44px; height: 44px; display: inline-block; }
+.adv-art svg { width: 100%; height: 100%; display: block; }
+.adv-names { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.adv-names b { font-weight: 700; font-size: 19px; }
+.adv-names i { font-style: normal; font-size: 15px; color: var(--ink-2); }
+.adv-star { flex: none; font-size: 28px; color: var(--ink-2); line-height: 1; }
+.adv-item.is-won .adv-star { color: var(--orange); }
+.adv-item.is-locked { opacity: 0.45; }
+.adv-item.is-locked .adv-art svg { filter: grayscale(1) brightness(0.4); opacity: 0.5; }
+
+/* a story page */
+.adv-page { padding: 4px 2px 6px; }
+.adv-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.adv-top .adv-art { width: 64px; height: 64px; }
+.adv-bi { margin: 0 0 10px; }
+.adv-bi p { margin: 0; }
+.adv-en { font-size: 19px; }
+.adv-vi { margin-top: 2px; font-size: 16px; color: var(--pen-blue); }
+.adv-victory h3, .adv-ending h3 { color: var(--pen-red); }
+.adv-ending h3 { text-align: center; margin-bottom: 8px; }
+.adv-theend { text-align: center; margin: 12px 0 0; font: 700 22px var(--sketch); }
+.adv-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.adv-close { margin-top: 4px; }
+.adv-msg { margin: 8px 0 0; min-height: 1.4em; color: var(--pen-red); font-size: 16px; }
+
+@media (max-width: 480px) {
+  .adv { padding: 16px 14px 14px; }
+  .adv h3 { font-size: 21px; }
+  .adv-row { gap: 8px; }
+  .adv-art { width: 38px; height: 38px; }
+  .adv-names b { font-size: 17px; }
+  .adv-en { font-size: 17px; }
+  .adv-vi { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adv .cx-btn, .adv-row { transition: none; }
+}

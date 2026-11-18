@@ -39,6 +39,10 @@
 
   let game = new Game();
   let flipped = false, mode = "cpu", level = "normal", human = 0;
+  // a set-up game asked for by another file (a chapter, a pasted position): where it starts, who you are, how the computer plays
+  let scene = null, startFen = E.START, thinker = null;
+  const heard = new Map();
+  const tell = (type, detail) => { for (const fn of heard.get(type) || []) { try { fn(detail); } catch (err) { console.error(err); } } };
   let selected = -1, legal = [], busy = false, over = null, firstCapture = true;
   const els = new Map();
 
@@ -1112,7 +1116,12 @@
     const turn = game.turn;
     const king = st.check ? [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === turn) : null;
     if (st.over) { over = st; stopClock(); }
-    else { clockSwitch(); statusLine(st, m); }
+    else {
+      // a couple of seconds back for the move just made, if that was asked for
+      if (minutes && bonus && timer) { left[turn ^ 1] += bonus * 1000; writeClock(turn ^ 1); }
+      clockSwitch(); statusLine(st, m);
+    }
+    tell("move", { move: m, san, ply: game.played.length, fen: game.fen(), check: Boolean(st.check), mode });
     let shown = false;
     return () => {
       if (shown) return;
@@ -1263,17 +1272,30 @@
     $("card").hidden = false;
     stickersForEnd(st);
     writeDiary(st);
+    tell("end", { result: st.result, reason: st.reason, mode, level, human, tag: scene ? scene.tag || null : null, plies: game.played.length });
   }
 
   /* ---------- the computer ---------- */
 
+  // the computer's move: another file may do the thinking (off the page's own thread), and a set-up game may ask for a style
+  async function thinkNow(g, lv) {
+    const style = scene && scene.style ? scene.style : null;
+    if (thinker) {
+      try {
+        const r = await thinker(g.fen(), lv, style);
+        const mv = r && g.moves().find((x) => x.from === r.from && x.to === r.to && (x.promo || 0) === (r.promo || 0));
+        if (mv) return mv;
+      } catch (err) { console.error(err); }
+    }
+    return think(g, lv, style ? { style } : undefined);
+  }
   async function computer() {
     busy = true;
     if (motion && motion.promise) await motion.promise;
     statusLine(game.status());
     await wait(anim ? 650 : 50);
     const t = performance.now();
-    const m = mercyMove(think(game, level === "teach" ? "easy" : level));
+    const m = mercyMove(await thinkNow(game, level === "teach" ? "easy" : level));
     // never answer instantly; a creature needs a moment
     await wait(Math.max(0, 350 - (performance.now() - t)));
     busy = false;
@@ -1283,6 +1305,7 @@
 
   /* ---------- clock: each second the old number is crossed out and the new one written ---------- */
 
+  let bonus = 0;
   let minutes = 0, left = [0, 0], tickAt = 0, timer = 0, shown = ["", ""];
   const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
   function writeClock(side) {
@@ -3454,6 +3477,7 @@
 
   /* 14. checkmate in a few moves: a slow-motion replay with a parrot on commentary */
   function replay(m, plies) {
+    if (!m) return;
     const el = els.get(m.to);
     if (!el || !anim) return;
     const job = skit([el]);
@@ -3712,12 +3736,27 @@
     game = new Game();
     over = null; selected = -1; legal = []; lastMove = null; firstCapture = true; busy = false;
     if (mode !== "online") human = mode === "cpu" && $("play-purple").checked ? 1 : 0;
+    if (mode === "puzzle" && puzKind === "rush") { if (!rush.next) rushStart(); rush.next = false; } else rushStop();
     if (mode === "puzzle") { puz = pickPuzzle(); puzStep = 0; puzMisses = 0; if (puz) { game = new Game(puz.fen); human = game.turn; } }
+    if (scene && (mode === "cpu" || mode === "friend")) {
+      if (scene.fen) { try { game = new Game(scene.fen); } catch { game = new Game(); } }
+      if (mode === "cpu" && scene.human != null) human = scene.human;
+      if (mode === "friend" && scene.fen) flipped = game.turn === 1;
+    }
+    startFen = game.fen();
     flipped = mode === "cpu" || mode === "online" || mode === "puzzle" ? human === 1 : flipped;
     spinNow = 0;
     setBoardTransform();
     $("tray-0").replaceChildren(); $("tray-1").replaceChildren();
     $("resign").disabled = false;
+    // a game brought in from outside comes with its moves: they are put on the board at once, and only the first time
+    if (scene && scene.moves && (mode === "cpu" || mode === "friend")) {
+      for (const san of scene.moves) { const mv = game.moves().find((x) => game.san(x) === san); if (!mv) break; game.play(mv); }
+      scene.moves = null;
+      if (game.played.length) { lastMove = game.played[game.played.length - 1].move; rebuildTrays(); firstCapture = false; }
+      const st0 = game.status();
+      if (st0.over) { over = st0; $("resign").disabled = true; }
+    }
     drawBoard(); buildSquares();
     let ready = anim ? 1.4 : 0;
     if (anim && first) {
@@ -3742,10 +3781,12 @@
     startClock();
     statusLine(game.status());
     if (mode === "puzzle") puzzleIntro();
+    if (over) statusEl.textContent = "This game is already finished. Look back at it, or start a new one.";
     freshGame(ready);
     $("card").hidden = true;
     if (mode === "cpu" && game.turn !== human) setTimeout(computer, ready * 1000);
     else if (mode === "cpu" && level === "teach") setTimeout(coach, (ready + 0.6) * 1000);
+    tell("new", { mode, level, human, fen: startFen, tag: scene ? scene.tag || null : null });
   }
 
   $("new").addEventListener("click", () => {
@@ -3803,13 +3844,17 @@
   });
   document.querySelectorAll('input[name="mode"]').forEach((i) => i.addEventListener("change", () => {
     if (mode === "online" && i.value !== "online") leaveRoom(false);
-    mode = i.value;
+    mode = i.value; scene = null;
     $("cpu-opts").disabled = mode !== "cpu";
+    paintPuzzleOpts();
     showOnline();
     if (mode === "online") { onlineMsg(""); if (!busy) { human = 0; newGame(); } return; }
     if (!busy) newGame();
   }));
+  const paintPuzzleOpts = () => { const po = $("puzzle-opts"); if (po) po.hidden = mode !== "puzzle"; };
+  document.querySelectorAll('input[name="pkind"]').forEach((i) => i.addEventListener("change", () => { puzKind = i.value; puzExtra = 0; if (mode === "puzzle" && !busy) newGame(); }));
   document.querySelectorAll('input[name="level"]').forEach((i) => i.addEventListener("change", () => { level = i.value; }));
+  if ($("clock-inc")) $("clock-inc").addEventListener("change", (e) => { bonus = e.target.checked ? 2 : 0; });
   $("play-purple").addEventListener("change", () => { if (!busy) newGame(); });
   document.querySelectorAll('input[name="clock"]').forEach((i) => i.addEventListener("change", () => { minutes = Number(i.value); if (!busy) newGame(); }));
 
@@ -3857,6 +3902,16 @@
       const { code } = await r.json();
       enterRoom(code);
     } catch { onlineMsg("The rooms service did not answer. Try again in a moment."); }
+  });
+  // play someone now: the rooms service pairs two visitors who are both waiting
+  if ($("room-match")) $("room-match").addEventListener("click", async () => {
+    if (!window.Matchmaker) { onlineMsg("Finding a stranger is not available right now."); return; }
+    onlineMsg("Looking for someone to play…");
+    try {
+      const { code, waiting } = await window.Matchmaker.find({});
+      enterRoom(code);
+      if (waiting) onlineMsg("Nobody is waiting yet. Stay here and the next visitor joins you.");
+    } catch (err) { onlineMsg((err && err.message) || "The rooms service did not answer. Try again in a moment."); }
   });
   $("room-join").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -4108,29 +4163,56 @@
 
 
 
-  /* ---------- today's puzzle: mate in two, a new one every day (puzzles.js, from the Lichess puzzle database) ---------- */
+  /* ---------- puzzles: one of each kind every day, and a three-minute rush (puzzles.js, from the Lichess puzzle database) ---------- */
   const PUZZLES = window.CHESS_PUZZLES || [];
+  const PUZ_WHAT = { mate1: "mate in one", mate2: "mate in two", mate3: "mate in three", win: "win a piece in two moves" };
+  const kindOf = (p) => p.kind || "mate2";
   const dayNo = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
-  let puz = null, puzStep = 0, puzMisses = 0, puzExtra = 0;
+  let puz = null, puzStep = 0, puzMisses = 0, puzExtra = 0, puzKind = "mate2";
+  // the rush: as many as you can in three minutes, three wrong moves and it is over
+  const rush = { on: false, next: false, score: 0, lives: 3, endAt: 0, timer: 0, seen: new Set() };
   const uciOf = (m) => name(m.from) + name(m.to) + (m.promo ? "nbrq"[[2, 3, 4, 5].indexOf(m.promo & 7)] : "");
   const fromUci = (g, u) => g.moves().find((m) => uciOf(m) === u);
-  const pickPuzzle = () => (PUZZLES.length ? PUZZLES[(((dayNo() + puzExtra) % PUZZLES.length) + PUZZLES.length) % PUZZLES.length] : null);
-  // after the first move: whatever the other side answers, is there a mate in one? (other mates in two count too)
-  function forcesMate(g) {
+  function pickPuzzle() {
+    if (puzKind === "rush") {
+      // easy ones first, harder as the count climbs; never the same one twice in a rush
+      const want = rush.score < 4 ? "mate1" : rush.score < 10 ? "mate2" : pick(["mate2", "mate3", "win"]);
+      let pool = PUZZLES.filter((p) => kindOf(p) === want && !rush.seen.has(p.id));
+      if (!pool.length) pool = PUZZLES.filter((p) => !rush.seen.has(p.id));
+      if (!pool.length) { rush.seen.clear(); pool = PUZZLES; }
+      const p = pool.length ? pool[Math.floor(Math.random() * Math.min(pool.length, 30))] : null;
+      if (p) rush.seen.add(p.id);
+      return p;
+    }
+    const pool = PUZZLES.filter((p) => kindOf(p) === puzKind);
+    return pool.length ? pool[(((dayNo() + puzExtra) % pool.length) + pool.length) % pool.length] : null;
+  }
+  // with the other side to move: whatever they answer, is there still a mate within n of our moves? (other mates count too)
+  function forcedMate(g, n, budget = { left: 60000 }) {
     const replies = g.moves();
     if (!replies.length) return g.inCheck();
+    if (n <= 0) return false;
     return replies.every((r) => {
       g.make(r);
-      const ok = g.moves().some((x) => { g.make(x); const mate = g.inCheck() && !g.moves().length; g.unmake(x); return mate; });
+      const ok = g.moves().some((x) => {
+        if (--budget.left < 0) return false;
+        g.make(x);
+        const yes = (g.inCheck() && !g.moves().length) || (n > 1 && forcedMate(g, n - 1, budget));
+        g.unmake(x);
+        return yes;
+      });
       g.unmake(r);
       return ok;
     });
   }
   function puzzleIntro() {
-    if (!puz) { statusEl.textContent = "No puzzle today, sorry."; return; }
-    const n = PUZZLES.indexOf(puz) + 1;
-    statusEl.textContent = `Puzzle ${n}: the ${TEAM[human]} team to move, and mate in two. (A puzzle from lichess.org; New game gives you another one.)`;
-    note(pick(["find the mate in two. the creatures are holding their breath", "two moves to checkmate. the owl believes in you", "today's puzzle! no peeking at the whale"]));
+    if (!puz) { statusEl.textContent = "No puzzle of that kind today, sorry."; return; }
+    const what = PUZ_WHAT[kindOf(puz)];
+    if (rush.on) { statusEl.textContent = `Rush puzzle ${rush.score + 1}: the ${TEAM[human]} team to move, ${what}.`; return; }
+    statusEl.textContent = `The ${TEAM[human]} team to move: ${what}. (A puzzle from lichess.org; New game gives you another one.)`;
+    note(kindOf(puz) === "win"
+      ? pick(["somebody is standing in the wrong place. find them", "two moves and one of them goes in your pocket", "today's puzzle! no peeking at the whale"])
+      : pick([`find the ${what}. the creatures are holding their breath`, "checkmate is in here somewhere. the owl believes in you", "today's puzzle! no peeking at the whale"]));
   }
   async function puzzleAnswer(m) {
     if (!puz) return;
@@ -4138,21 +4220,22 @@
     if (motion && motion.promise) await motion.promise;
     await wait(anim ? 450 : 30);
     busy = false;
-    const st = game.status();
-    if (st.reason === "checkmate") return;
-    if (puzStep === 0) {
-      const good = uciOf(m) === puz.line[0] || forcesMate(game);
-      if (!good) { await puzzleWrong(); return; }
-      puzStep = 2;
-      busy = true;
-      await wait(anim ? 350 : 30);
-      busy = false;
-      const reply = fromUci(game, puz.line[1]) || game.moves()[0];
-      if (reply) await playMove(reply);
-      if (motion && motion.promise) await motion.promise;
-      statusEl.textContent = "Good! Now the mate, in one move.";
-      note(pick(["ooh. they did not see that coming", "one more move. make it count", "the creatures are on the edge of their squares"]));
-    } else await puzzleWrong(true);
+    if (game.status().reason === "checkmate") return;
+    const line = puz.line, last = puzStep >= line.length - 1, onLine = uciOf(m) === line[puzStep];
+    const mates = kindOf(puz) !== "win";
+    if (mates && last) { await puzzleWrong(true); return; }
+    if (!onLine && !(mates && forcedMate(game, (line.length - 1 - puzStep) / 2))) { await puzzleWrong(); return; }
+    if (last) { over = { over: true, result: human ? "0-1" : "1-0", reason: "puzzle" }; sfx("win"); puzzleSolved(); return; }
+    busy = true;
+    await wait(anim ? 350 : 30);
+    busy = false;
+    const reply = (onLine && fromUci(game, line[puzStep + 1])) || game.moves()[0];
+    puzStep += 2;
+    if (reply) await playMove(reply);
+    if (motion && motion.promise) await motion.promise;
+    const togo = (line.length - 1 - puzStep) / 2 + 1;
+    statusEl.textContent = !mates ? "Good! Now take what is yours." : togo === 1 ? "Good! Now the mate, in one move." : `Good! Mate in ${togo} moves from here.`;
+    note(pick(["ooh. they did not see that coming", "keep going. make it count", "the creatures are on the edge of their squares"]));
   }
   async function puzzleWrong(second) {
     puzMisses++;
@@ -4166,6 +4249,12 @@
     rebuildTrays(); buildPieces(); drawMarks(); writeMoves(); labelSquares();
     statusEl.textContent = second ? "That is not mate yet. Try again." : "Not that one. Try again.";
     busy = false;
+    if (rush.on) {
+      rush.lives--;
+      paintRush();
+      if (rush.lives <= 0) rushEnd(); else { statusEl.textContent = "Not that one. On to the next."; rushNext(); }
+      return;
+    }
     // after two misses, the creature that should move gives itself away
     if (puzMisses >= 2 && anim) {
       const m = fromUci(game, puz.line[puzStep]);
@@ -4173,13 +4262,64 @@
     }
   }
   function puzzleSolved() {
+    if (rush.on) {
+      rush.score++;
+      paintRush();
+      statusEl.textContent = `${pick(["Yes!", "Got it!", "Solved!"])} The next one is coming.`;
+      rushNext();
+      return;
+    }
     let solved = [];
     try { solved = JSON.parse(store.get("chess-puzzles-solved") || "[]"); } catch { /* start again */ }
     if (!solved.includes(puz.id)) solved.push(puz.id);
     store.set("chess-puzzles-solved", JSON.stringify(solved));
-    statusEl.textContent = `Solved! Mate in two${puzMisses ? ` (after ${puzMisses} ${puzMisses === 1 ? "try" : "tries"})` : ", first time"}. New game gives you another puzzle.`;
+    const tries = puzMisses ? ` (after ${puzMisses} ${puzMisses === 1 ? "try" : "tries"})` : ", first time";
+    statusEl.textContent = `Solved! ${cap(PUZ_WHAT[kindOf(puz)])}${tries}. New game gives you another puzzle.`;
     award("puzzle");
     if (solved.length >= 3) award("puzzle3");
+  }
+  function paintRush(done) {
+    const el = $("rush");
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = done ? `rush over: ${rush.score} solved` : `${fmt(rush.endAt - Date.now())} left, ${rush.score} solved, ${"♥".repeat(Math.max(0, rush.lives))}`;
+  }
+  function rushStart() {
+    clearInterval(rush.timer);
+    rush.on = true; rush.score = 0; rush.lives = 3; rush.seen.clear();
+    rush.endAt = Date.now() + 180000;
+    rush.timer = setInterval(() => { if (Date.now() >= rush.endAt) rushEnd(); else paintRush(); }, 500);
+    paintRush();
+  }
+  function rushStop() {
+    clearInterval(rush.timer);
+    rush.timer = 0; rush.on = false; rush.next = false;
+    const el = $("rush");
+    if (el) el.hidden = true;
+  }
+  function rushNext() {
+    const go = () => {
+      if (mode !== "puzzle" || puzKind !== "rush" || !rush.on) return;
+      if (busy) { setTimeout(go, 200); return; }
+      rush.next = true;
+      newGame();
+    };
+    setTimeout(go, anim ? 1300 : 300);
+  }
+  function rushEnd() {
+    const n = rush.score;
+    clearInterval(rush.timer);
+    rush.timer = 0; rush.on = false;
+    over = { over: true, result: "*", reason: "rush" };
+    deselect();
+    const before = Number(store.get("chess-rush-best") || 0);
+    if (n > before) store.set("chess-rush-best", String(n));
+    const best = n > before && n ? ", your best yet" : before ? ` (your best is ${before})` : "";
+    statusEl.textContent = `${rush.lives <= 0 ? "Three wrong moves" : "Time"}! You solved ${n} ${n === 1 ? "puzzle" : "puzzles"}${best}. New game starts another rush.`;
+    note(n >= 8 ? "the owl has never seen a pencil move that fast" : n ? "not bad at all. the creatures are out of breath" : "the creatures say: one more go?");
+    paintRush(true);
+    sfx(n ? "win" : "draw");
+    if (n >= 5) award("rush");
   }
 
   /* ---------- stickers: little prizes for things done, kept on this device ---------- */
@@ -4202,6 +4342,7 @@
     { id: "stomp", piece: 4, name: "Flattened", how: "Get your slingshot stomped." },
     { id: "gang", piece: 9, name: "Outnumbered", how: "Get a whole team after you." },
     { id: "zap", piece: 11, name: "Toast", how: "Get your slingshot zapped by the wizard." },
+    { id: "rush", piece: 10, name: "In a rush", how: "Solve five puzzles in one rush." },
   ];
   let stickers = {};
   try { stickers = JSON.parse(store.get("chess-stickers") || "{}") || {}; } catch { stickers = {}; }
@@ -4779,6 +4920,50 @@
     if (!anim || seen || roomFromUrl()) return Promise.resolve();
     try { localStorage.setItem("chess-intro", "1"); } catch { /* fine */ }
     return book();
+  }
+
+  /* ---------- a door for the other files (the look back, the adventure, the lessons): they listen and ask, the board stays here ---------- */
+  window.Margins = {
+    on(type, fn) { if (!heard.has(type)) heard.set(type, new Set()); heard.get(type).add(fn); return () => heard.get(type).delete(fn); },
+    get mode() { return mode; }, get level() { return level; }, get human() { return human; }, get busy() { return busy; },
+    get over() { return over; }, get startFen() { return startFen; }, get tag() { return scene ? scene.tag || null : null; },
+    fen: () => game.fen(),
+    // every move so far, as plain data: squares (0x88), the piece codes and the written move
+    played: () => game.played.map(({ move, san }) => ({ from: move.from, to: move.to, promo: move.promo || 0, piece: move.piece, captured: move.captured || 0, san })),
+    // start a set-up game: { fen, moves (written moves played at once from fen), mode: "cpu" | "friend", level, human: 0 | 1, style, tag }. Answers false while the board is busy.
+    load(opts = {}) {
+      if (busy) return false;
+      const want = opts.mode === "friend" ? "friend" : "cpu";
+      if (mode === "online") leaveRoom(false);
+      mode = want;
+      const r = document.querySelector(`input[name="mode"][value="${want}"]`); if (r) r.checked = true;
+      $("cpu-opts").disabled = mode !== "cpu";
+      paintPuzzleOpts();
+      showOnline();
+      if (opts.level && ["easy", "normal", "hard", "teach", "master"].includes(opts.level)) {
+        level = opts.level;
+        const l = document.querySelector(`input[name="level"][value="${level}"]`); if (l) l.checked = true;
+      }
+      scene = { moves: Array.isArray(opts.moves) && opts.moves.length ? opts.moves.map(String) : null, fen: opts.fen || null, human: opts.human == null ? null : opts.human ? 1 : 0, style: opts.style || null, tag: opts.tag || null };
+      newGame();
+      return true;
+    },
+    // back to an ordinary game
+    leave() { if (busy || !scene) return false; scene = null; newGame(); return true; },
+    setThinker(fn) { thinker = typeof fn === "function" ? fn : null; },
+    note: (text) => note(String(text)),
+    status: (text) => { statusEl.textContent = String(text); },
+    mini: (p) => mini(p),
+    award: (id) => award(id),
+    enterRoom: (code) => enterRoom(code),
+    store,
+    reduce,
+  };
+
+  // the buttons for what lives in the other files
+  for (const [id, thing, act] of [["adventure-btn", "Adventure", "open"], ["school-btn", "School", "open"], ["look-back-btn", "Review", "open"], ["pgn-btn", "Pgn", "openDialog"]]) {
+    const b = $(id);
+    if (b) b.addEventListener("click", () => { if (window[thing]) window[thing][act](); });
   }
 
   function start() {
