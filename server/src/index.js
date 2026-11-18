@@ -11,6 +11,9 @@ const ROOM_TTL = 24 * 3600 * 1000; // a room is cleared a day after anyone last 
 const MAX_MSG = 600; // bytes
 const RATE = { per: 1000, max: 12 }; // messages per second per socket
 const EMOTES = new Set(["wave", "laugh", "grr", "yawn", "love", "shock"]);
+const MATCH_TTL = 60 * 1000; // a room waiting for a stranger is offered for a minute, then forgotten
+const MAX_WAITING = 50; // never more than this many rooms waiting at once
+const MAX_BODY = 256; // bytes a match request may carry
 const MAX_SOCKETS = 64; // two players and a small crowd; more than that is someone hammering the room
 
 const json = (data, status = 200, headers = {}) =>
@@ -40,6 +43,12 @@ const cleanName = (s) =>
     .replace(/[\u0000-\u001f\u007f-\u009f<>\u00ad\u061c\u115f\u1160\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufeff\uffa0\ufff0-\uffff]/g, "")
     .trim().slice(0, 20).trim() || "a friend";
 
+// a short, one-way tag for the visitor's address: enough to tell two visitors apart for a minute, not enough to read back
+async function visitorTag(ip) {
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("match:" + ip)));
+  return [...bytes.slice(0, 8)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -63,6 +72,30 @@ export default {
       return json({ error: "could not open a room, try again" }, 503, h);
     }
 
+    // POST /match: sit down with a waiting stranger, or open a room and wait for one
+    if (url.pathname === "/match") {
+      if (req.method !== "POST") return json({ error: "use POST" }, 405, h);
+      if (!allowedOrigin(env, req.headers.get("origin"))) return json({ error: "origin not allowed" }, 403);
+      // the body is optional and ignored, but anything that is not a small JSON object is turned away
+      if (Number(req.headers.get("content-length") || 0) > MAX_BODY) return json({ error: "request too big" }, 413, h);
+      const text = await req.text();
+      if (text.length > MAX_BODY) return json({ error: "request too big" }, 413, h);
+      if (text.trim()) {
+        let body;
+        try { body = JSON.parse(text); } catch { body = null; }
+        if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "bad request" }, 400, h);
+      }
+      const ip = req.headers.get("cf-connecting-ip") || "unknown";
+      if (env.OPEN_LIMIT) {
+        const { success } = await env.OPEN_LIMIT.limit({ key: ip });
+        if (!success) return json({ error: "too many tries, wait a minute" }, 429, h);
+      }
+      if (!env.LOBBY) return json({ error: "matching is not available" }, 503, h);
+      const lobby = env.LOBBY.get(env.LOBBY.idFromName("lobby"));
+      const r = await lobby.fetch("https://lobby/match", { method: "POST", body: JSON.stringify({ visitor: await visitorTag(ip) }) });
+      return new Response(r.body, { status: r.status, headers: { "content-type": "application/json; charset=utf-8", ...h } });
+    }
+
     const m = url.pathname.match(/^\/rooms\/([A-Za-z0-9]{6})(\/ws)?$/);
     if (m) {
       const code = m[1].toUpperCase();
@@ -80,6 +113,83 @@ export default {
     return json({ ok: true, service: "chess-in-the-margins rooms" }, 200, h);
   },
 };
+
+// The lobby: a short list of rooms that have one player waiting for a stranger.
+// It holds a room code, a one-way tag for who opened it and a time, for a minute at most.
+// It is reachable only through the Worker and the rooms, never from outside.
+export class Lobby {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+    this.q = null; // [{ code, visitor, at }]
+    this.ready = new WeakMap(); // room still being opened -> promise
+  }
+  async load() {
+    if (!this.q) this.q = (await this.state.storage.get("q")) || [];
+    const now = Date.now();
+    this.q = this.q.filter((e) => now - e.at < MATCH_TTL);
+    return this.q;
+  }
+  async save() {
+    const keep = this.q.filter((e) => e.code);
+    await this.state.storage.put("q", keep);
+    if (keep.length) await this.state.storage.setAlarm(keep[0].at + MATCH_TTL + 1000);
+  }
+  async alarm() { await this.load(); await this.save(); }
+
+  async fetch(req) {
+    if (req.method !== "POST") return json({ error: "not found" }, 404);
+    const path = new URL(req.url).pathname;
+    let body;
+    try { body = await req.json(); } catch { return json({ error: "bad request" }, 400); }
+    await this.load();
+    if (path === "/filled" || path === "/left") {
+      // the room says its waiting player is gone or a second one has sat down: stop offering it
+      if (body && typeof body.code === "string") { this.q = this.q.filter((e) => e.code !== body.code); await this.save(); }
+      return json({ ok: true });
+    }
+    if (path !== "/match" || !body || typeof body.visitor !== "string" || !/^[0-9a-f]{16}$/.test(body.visitor)) return json({ error: "bad request" }, 400);
+    return this.match(body.visitor);
+  }
+
+  async match(visitor) {
+    // someone else's waiting room first; never the visitor's own
+    for (;;) {
+      const e = this.q.find((x) => x.visitor !== visitor);
+      if (!e) break;
+      this.q = this.q.filter((x) => x !== e);
+      const ok = this.ready.has(e) ? await this.ready.get(e) : true;
+      if (!ok || !e.code) continue;
+      this.q = this.q.filter((x) => x.visitor !== visitor); // they found a game, so their own waiting room is not needed
+      await this.save();
+      return json({ code: e.code });
+    }
+    // asking again while still waiting gives back the same room
+    const own = this.q.find((x) => x.visitor === visitor);
+    if (own) {
+      if (this.ready.has(own) && !(await this.ready.get(own))) return json({ error: "could not open a room, try again" }, 503);
+      return json({ code: own.code, waiting: true });
+    }
+    if (this.q.length >= MAX_WAITING) return json({ error: "busy, try again in a moment" }, 503);
+    const entry = { code: null, visitor, at: Date.now() };
+    this.q.push(entry);
+    const opening = (async () => {
+      for (let i = 0; i < 5; i++) {
+        const code = newCode();
+        const stub = this.env.ROOMS.get(this.env.ROOMS.idFromName(code));
+        const r = await stub.fetch("https://room/init", { method: "POST", body: JSON.stringify({ match: true, code }) });
+        if (r.status === 201) { entry.code = code; return true; }
+      }
+      return false;
+    })();
+    this.ready.set(entry, opening);
+    let ok = false;
+    try { ok = await opening; } catch { ok = false; }
+    if (!ok) { this.q = this.q.filter((x) => x !== entry); return json({ error: "could not open a room, try again" }, 503); }
+    await this.save();
+    return json({ code: entry.code, waiting: true });
+  }
+}
 
 export class Room {
   constructor(state, env) {
@@ -119,7 +229,10 @@ export class Room {
     const url = new URL(req.url);
     if (url.pathname === "/init") {
       if (await this.load()) return new Response("taken", { status: 409 });
-      this.data = { open: true, players: [], moves: [], result: null, rematch: [], created: Date.now(), touched: Date.now() };
+      let opts = null;
+      try { opts = await req.json(); } catch { /* no body: an ordinary room */ }
+      const match = Boolean(opts && opts.match === true && typeof opts.code === "string" && CODE.test(opts.code));
+      this.data = { open: true, ...(match ? { match: true, code: opts.code } : {}), players: [], moves: [], result: null, rematch: [], created: Date.now(), touched: Date.now() };
       await this.save();
       return new Response("ok", { status: 201 });
     }
@@ -157,6 +270,12 @@ export class Room {
     const s = JSON.stringify(msg);
     for (const ws of this.state.getWebSockets()) if (ws !== except) try { ws.send(s); } catch { /* closed */ }
   }
+  // a matchmaking room tells the lobby when it stops waiting; a missed message only means the entry expires on its own
+  async tellLobby(path) {
+    const d = this.data;
+    if (!d || !d.match || !this.env.LOBBY) return;
+    try { await this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby")).fetch("https://lobby" + path, { method: "POST", body: JSON.stringify({ code: d.code }) }); } catch { /* lobby busy */ }
+  }
   send(ws, msg) { try { ws.send(JSON.stringify(msg)); } catch { /* closed */ } }
 
   async webSocketMessage(ws, raw) {
@@ -183,6 +302,7 @@ export class Room {
         const color = d.players.length === 0 ? (crypto.getRandomValues(new Uint8Array(1))[0] & 1 ? "w" : "b") : (d.players[0].color === "w" ? "b" : "w");
         seat = { token: newToken(), name: cleanName(msg.name), color };
         d.players.push(seat);
+        if (d.players.length === 2) await this.tellLobby("/filled");
       }
       att.token = seat ? seat.token : null;
       att.color = seat ? seat.color : "spectator";
@@ -257,7 +377,15 @@ export class Room {
 
   async webSocketClose(ws) {
     try { ws.close(1000, "bye"); } catch { /* already closed */ }
-    if (await this.load()) this.broadcast(this.snapshot(ws), ws);
+    if (await this.load()) {
+      this.broadcast(this.snapshot(ws), ws);
+      // the only player has gone: do not send a stranger to an empty room
+      const d = this.data;
+      if (d.match && d.players.length === 1) {
+        const here = this.state.getWebSockets().some((s) => s !== ws && s.deserializeAttachment().color === d.players[0].color);
+        if (!here) await this.tellLobby("/left");
+      }
+    }
   }
   async webSocketError(ws) { await this.webSocketClose(ws); }
 }
