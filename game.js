@@ -16,7 +16,12 @@
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
   const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
   // wait for a timeline without taking over its own onComplete (props clean themselves up there)
-  const play = (tl) => new Promise((ok) => { tl.then(() => ok()); tl.eventCallback("onInterrupt", () => ok()); });
+  const play = (tl) => new Promise((ok) => {
+    tl.then(() => ok());
+    // a timeline may already tidy up after itself when it is cut short: that still has to happen
+    const tidy = tl.eventCallback("onInterrupt");
+    tl.eventCallback("onInterrupt", () => { if (tidy) tidy(); ok(); });
+  });
 
   const KIND = ["", "pawn", "knight", "bishop", "rook", "queen", "king"];
   // [orange team, purple team]
@@ -677,7 +682,12 @@
 
   async function choose(options) {
     let m = options[0];
-    if (options.length > 1) m = await askPromotion(options);
+    if (options.length > 1) {
+      const asked = game;
+      m = await askPromotion(options);
+      // the game can end or be replaced while the question is open
+      if (!m || over || game !== asked || !game.moves().some((x) => x.from === m.from && x.to === m.to && (x.promo || 0) === (m.promo || 0))) return;
+    }
     if (!m) return;
     if (mode === "online") {
       selected = -1; legal = []; drawMarks();
@@ -764,7 +774,7 @@
       fix(mover, m.to);
       if (rook) fix(rook.el, rook.to);
       if (job.stopDizzy) job.stopDizzy();
-      if (victim) { G.killTweensOf([victim, victim.__act]); victim.remove(); job.addToTray(); }
+      if (victim) { G.killTweensOf([victim, victim.__act]); sleep(victim); victim.remove(); job.addToTray(); }
       if (m.promo && !job.grown) growNow(mover, m);
       paintWorry();
     };
@@ -773,7 +783,7 @@
     motions.push(job);
 
     job.shown = afterMove(m, san);
-    job.promise = (async () => {
+    const act = async () => {
       if (prev) await prev.promise;
       if (job.done) return;
       const t = spot(m.to);
@@ -793,7 +803,13 @@
       if (motions.includes(job)) motions.splice(motions.indexOf(job), 1);
       paintWorry();
       job.shown();
-    })();
+    };
+    // a step that goes wrong must not hold up every move after it: the move is put where it ends
+    job.promise = act().catch((e) => {
+      console.error(e);
+      try { job.finishNow(); } catch (e2) { console.error(e2); }
+      if (motions.includes(job)) motions.splice(motions.indexOf(job), 1);
+    });
     return job.promise;
   }
 
@@ -866,7 +882,7 @@
   async function grow(el, m, job) {
     sfx("grow");
     const s = spot(m.to);
-    if (!anim) { const fresh = CR.make(m.promo); el.__c.svg.replaceWith(fresh.svg); dressUp(fresh); el.__c = fresh; el.__p = m.promo; return; }
+    if (!anim) { const fresh = CR.make(m.promo); el.__c.svg.replaceWith(fresh.svg); dressUp(fresh); el.__c = fresh; el.__p = m.promo; el.dataset.key = key(m.promo); return; }
     burst(s.x, s.y - s.w * 0.5, 10);
     const track = job ? job.track : play;
     await track(G.timeline()
@@ -1290,14 +1306,24 @@
     return think(g, lv, style ? { style } : undefined);
   }
   async function computer() {
+    const mine = game;
     busy = true;
+    try { await computerMove(mine); } catch (e) {
+      console.error(e);
+      if (game === mine) busy = false;
+    }
+  }
+  async function computerMove(mine) {
     if (motion && motion.promise) await motion.promise;
+    // a new game may have begun while this one was waiting
+    if (game !== mine) return;
     statusLine(game.status());
     await wait(anim ? 650 : 50);
     const t = performance.now();
     const m = mercyMove(await thinkNow(game, level === "teach" ? "easy" : level));
     // never answer instantly; a creature needs a moment
     await wait(Math.max(0, 350 - (performance.now() - t)));
+    if (game !== mine) return;
     busy = false;
     if (m && !over) await playMove(m);
     if (level === "teach" && !over) { if (motion && motion.promise) await motion.promise; coach(); }
@@ -3784,8 +3810,10 @@
     if (over) statusEl.textContent = "This game is already finished. Look back at it, or start a new one.";
     freshGame(ready);
     $("card").hidden = true;
-    if (mode === "cpu" && game.turn !== human) setTimeout(computer, ready * 1000);
-    else if (mode === "cpu" && level === "teach") setTimeout(coach, (ready + 0.6) * 1000);
+    // only for this game: a newer one has its own start
+    const mine = game;
+    if (mode === "cpu" && game.turn !== human) setTimeout(() => { if (game === mine) computer(); }, ready * 1000);
+    else if (mode === "cpu" && level === "teach") setTimeout(() => { if (game === mine) coach(); }, (ready + 0.6) * 1000);
     tell("new", { mode, level, human, fen: startFen, tag: scene ? scene.tag || null : null });
   }
 
@@ -3893,6 +3921,7 @@
     $("room").hidden = !net.code;
     $("undo").disabled = on;
     if (on) { minutes = 0; stopClock(); $("clocks").hidden = true; }
+    else { const picked = document.querySelector("input[name=clock]:checked"); if (picked) minutes = Number(picked.value); }
   }
   const nameNow = () => { const v = (myName && myName.value.trim()) || "a friend"; store.set("chess-name", v); return v.slice(0, 20); };
 
@@ -3949,7 +3978,7 @@
   function leaveRoom(reset) {
     net.closing = true;
     clearTimeout(net.timer);
-    if (net.ws) try { net.ws.close(1000, "left"); } catch { /* gone */ }
+    if (net.ws) { net.ws.onmessage = null; try { net.ws.close(1000, "left"); } catch { /* gone */ } }
     net.ws = null; net.code = null; net.ready = false; net.pending = false; net.players = []; net.offline.clear();
     try { history.replaceState(null, "", "/"); } catch { /* fine */ }
     if (reset) { human = 0; showOnline(); newGame(); onlineMsg("You left the room."); }
@@ -3963,6 +3992,10 @@
   function connect() {
     net.closing = false;
     const code = net.code;
+    // one line to the room at a time: an older one is hung up first and no longer listened to
+    const old = net.ws;
+    if (old) { old.onmessage = null; old.onclose = null; try { old.close(1000, "again"); } catch { /* gone */ } }
+    clearTimeout(net.timer);
     const ws = new WebSocket(`${API.replace(/^http/, "ws")}/rooms/${code}/ws`);
     net.ws = ws;
     ws.onopen = () => { net.tries = 0; ws.send(JSON.stringify({ t: "hello", token: store.get(`chess-room-${code}`), name: nameNow() })); };
@@ -4073,6 +4106,7 @@
   // an emote: that side's king pipes up with a word and a little hop
   const SAY = { wave: "hi!", laugh: "ha ha!", grr: "grr!", yawn: "yaaawn", love: "\u2665", shock: "!!" };
   function emote(side, e) {
+    if (!SAY[e]) return;
     sfx("emote", e, side);
     const k = [...els].find(([, el]) => (el.__p & 7) === 6 && colorOf(el.__p) === side);
     if (!k) return;
@@ -4218,9 +4252,12 @@
   }
   async function puzzleAnswer(m) {
     if (!puz) return;
+    const mine = game;
     busy = true;
     if (motion && motion.promise) await motion.promise;
     await wait(anim ? 450 : 30);
+    // another puzzle may have taken this one's place
+    if (game !== mine) return;
     busy = false;
     if (game.status().reason === "checkmate") return;
     const line = puz.line, last = puzStep >= line.length - 1, onLine = uciOf(m) === line[puzStep];
@@ -4230,11 +4267,13 @@
     if (last) { over = { over: true, result: human ? "0-1" : "1-0", reason: "puzzle" }; sfx("win"); puzzleSolved(); return; }
     busy = true;
     await wait(anim ? 350 : 30);
+    if (game !== mine) return;
     busy = false;
     const reply = (onLine && fromUci(game, line[puzStep + 1])) || game.moves()[0];
     puzStep += 2;
     if (reply) await playMove(reply);
     if (motion && motion.promise) await motion.promise;
+    if (game !== mine) return;
     const togo = (line.length - 1 - puzStep) / 2 + 1;
     statusEl.textContent = !mates ? "Good! Now take what is yours." : togo === 1 ? "Good! Now the mate, in one move." : `Good! Mate in ${togo} moves from here.`;
     note(pick(["ooh. they did not see that coming", "keep going. make it count", "the creatures are on the edge of their squares"]));
@@ -4273,6 +4312,7 @@
     }
     let solved = [];
     try { solved = JSON.parse(store.get("chess-puzzles-solved") || "[]"); } catch { /* start again */ }
+    if (!Array.isArray(solved)) solved = [];
     if (!solved.includes(puz.id)) solved.push(puz.id);
     store.set("chess-puzzles-solved", JSON.stringify(solved));
     const tries = puzMisses ? ` (after ${puzMisses} ${puzMisses === 1 ? "try" : "tries"})` : ", first time";
@@ -4300,8 +4340,9 @@
     if (el) el.hidden = true;
   }
   function rushNext() {
+    const mine = game;
     const go = () => {
-      if (mode !== "puzzle" || puzKind !== "rush" || !rush.on) return;
+      if (mode !== "puzzle" || puzKind !== "rush" || !rush.on || game !== mine) return;
       if (busy) { setTimeout(go, 200); return; }
       rush.next = true;
       newGame();
@@ -4764,6 +4805,7 @@
 
   function story() {
     const box = $("intro"), skip = $("intro-skip");
+    if (!window.rough) return Promise.resolve();
     box.replaceChildren(skip);
     box.classList.add("is-on");
     G.set(box, { opacity: 1 });
