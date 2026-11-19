@@ -7,7 +7,8 @@
 - Three hundred puzzles: mate in one, two and three, and winning a piece.
 - A stronger computer on hard, a master level, playing styles, and thinking in a worker.
 - Online: the rooms service can pair two waiting visitors.
-- Browser tests for the whole page, a lint step, and both in CI.
+- Browser tests for the whole page, a lint step and a type check, all in CI.
+- The game's own code is ten files by subject in `game/` instead of one file of five thousand lines.
 
 ### Fixed
 - A long session no longer keeps every creature that ever moved in memory.

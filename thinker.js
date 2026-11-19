@@ -1,4 +1,4 @@
-/* Hands the computer's thinking to a worker so the page stays smooth. Loaded after game.js.
+/* Hands the computer's thinking to a worker so the page stays smooth. Loaded after the files in game/.
    If anything goes wrong the promise rejects and the game thinks on the main thread instead. */
 (function () {
   "use strict";

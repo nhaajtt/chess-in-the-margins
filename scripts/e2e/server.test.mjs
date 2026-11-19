@@ -18,7 +18,7 @@ test("it binds to the loopback address on a free port", () => {
 
 test("every response carries the headers of vercel.json", async () => {
   const all = rule("/(.*)");
-  for (const p of ["/", "/chess.css", "/game.js", "/favicon.svg"]) {
+  for (const p of ["/", "/chess.css", "/game/01-board.js", "/favicon.svg"]) {
     const r = await get(p);
     assert.equal(r.status, 200, p);
     for (const [k, v] of Object.entries(all)) assert.equal(r.headers.get(k), v, `${p}: ${k}`);
@@ -33,7 +33,7 @@ test("assets, the service worker and the manifest get their own rules", async ()
 
 test("file types are right", async () => {
   assert.match((await get("/")).headers.get("content-type"), /^text\/html/);
-  assert.match((await get("/game.js")).headers.get("content-type"), /^text\/javascript/);
+  assert.match((await get("/game/01-board.js")).headers.get("content-type"), /^text\/javascript/);
   assert.match((await get("/chess.css")).headers.get("content-type"), /^text\/css/);
   assert.equal((await get("/favicon.svg")).headers.get("content-type"), "image/svg+xml");
 });

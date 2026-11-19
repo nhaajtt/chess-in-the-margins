@@ -1,6 +1,6 @@
 // Online rooms: two pages play each other through the real Worker, started locally with the wrangler in server/node_modules.
 //   npm run test:e2e:online
-// The page talks to http://localhost:8787 when it is opened from this machine (game.js, API), so that is the port used here.
+// The page talks to http://localhost:8787 when it is opened from this machine (game/07-controls.js, API), so that is the port used here.
 // If wrangler cannot be started (not installed, port 8787 busy, no permission), every test in this file is skipped with the reason.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -69,7 +69,7 @@ const sides = async (a, b) => {
   return colour === 0 ? { white: a, black: b } : { white: b, black: a };
 };
 // remember every sound the page plays (an emote plays one), since the little speech bubbles are only drawn with motion on
-const spyOnSounds = (g) => g.page.eval(`window.__sounds = []; const play = Sound.play.bind(Sound); Sound.play = (name, ...rest) => { window.__sounds.push([name, ...rest]); return play(name, ...rest); };`);
+const spyOnSounds = (g) => g.page.eval(`window.__sounds = []; { const heard = Sound.play.bind(Sound); Sound.play = (name, ...rest) => { window.__sounds.push([name, ...rest]); return heard(name, ...rest); }; }`);
 
 test("two pages play a room: create, join, moves both ways, an emote, a draw offer, a dropped connection and the way back", { skipIf, timeout: 240000 }, async (a) => {
   // --- A opens a room ---
@@ -197,7 +197,7 @@ test("leaving a room puts the page back to a game of its own", { skipIf }, async
 });
 
 // Known bug, not fixed here: when a room's result arrives (a draw agreed, a resignation), applyState() writes the result in the
-// status line through finish() and then immediately overwrites it with the turn text (game.js:4030, statusLine), so the page
+// status line through finish() and then immediately overwrites it with the turn text, so the page
 // says "Your move." or "Waiting for ..." about a game that is over.
 test("the status line says how an online game ended", { skipIf, timeout: 120000 }, async (a) => {
   await a.open({ seed: { "chess-name": "Ann" } });

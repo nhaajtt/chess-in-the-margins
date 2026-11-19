@@ -184,7 +184,7 @@ No framework and no build step: just HTML, CSS and plain JavaScript in a handful
 |---|---|
 | `engine.js` | The rules of chess and the computer opponent, written from scratch. It uses a 0x88 board with legal move generation, castling, en passant, promotion, 50-move and threefold repetition rules, and SAN notation. The opponent searches with alpha-beta and quiescence under a time budget; on hard and master it adds a transposition table, null-move pruning, killer and history ordering and a fuller evaluation, and it can be given a style (careful, reckless, greedy, sleepy). |
 | `creatures.js` | The twelve creatures, drawn with [rough.js](https://roughjs.com) from separate parts (legs, arms, hat, face). Each part is drawn twice and the copies take turns so the lines boil. It also handles expressions, idle life, walking and the drawing-in effect. Once drawn, the whole cast is painted on one canvas each frame from ready-made pictures of each part, while the hidden SVG stays as the skeleton the animations move, which keeps it smooth on phones. |
-| `game.js` | Everything else: the board on a tilted plane with creatures projected onto it, moves and fights animated with [GSAP](https://gsap.com), the camera, the story, the doodles, the commentary and the clock. |
+| `game/` | Everything else, in ten files that load in order: the board on a tilted plane with creatures projected onto it, moves and fights animated with [GSAP](https://gsap.com), the camera, the story, the doodles, the commentary and the clock. |
 | `paper.js` | Paints the sheet of paper once on a canvas. |
 | `sound.js` | Plays the recordings in `assets/sfx/` (public domain sounds from Freesound, listed in `assets/sfx/CREDITS.md`): a voice, feet, a wind-up and a blow for each of the 12 creatures, and the beach ambience by day and night. Music (the story's music box, the team tunes, the losing trombone) is made with the Web Audio API, which also covers for any recording not loaded yet. Off until you turn it on. |
 | `sling.js` | The volume slingshot: shoot along the ruler to set the volume, or at the creatures for fun (and their revenge). Also the "tap me" sign. |
@@ -231,7 +231,7 @@ npm run test:e2e:online         # two pages playing through the rooms (needs ser
 cd server && npm ci && npm run dev
 ```
 
-`docs/architecture.md` maps the files and the sections of `game.js`; `CONTRIBUTING.md` has the ground rules.
+`docs/architecture.md` maps the files; `CONTRIBUTING.md` has the ground rules.
 
 Every push runs the checks on GitHub Actions. The live site is deployed on Vercel from `main`; `vercel.json` sets the security headers. The rooms are deployed with `npm run deploy` in `server/`.
 

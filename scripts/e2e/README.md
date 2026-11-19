@@ -57,7 +57,7 @@ Chrome is found from `CHROME_PATH`, then the usual places on Windows, macOS and 
 
 ## Things to know
 
-- The page registers its service worker only on https (`game.js`), and the test host is plain http, so `offline.test.mjs` registers
+- The page registers its service worker only on https (`game/08-extras.js`), and the test host is plain http, so `offline.test.mjs` registers
   `/sw.js` itself. It tests the worker and its cache, not the one line that asks for the worker.
 - The rooms service gives the first visitor of a room a random colour, so the online test finds out who is who.
 - The online test gives the page's policy one extra entry (`connect-src http://localhost:8787 ws://localhost:8787`), because the page
@@ -65,15 +65,6 @@ Chrome is found from `CHROME_PATH`, then the usual places on Windows, macOS and 
 - `online.test.mjs` needs port 8787 free and `npm ci` done in `server/`. It never touches a service that is already running.
 - A test marked `todo` documents a bug that is known and not fixed. It runs and its failure is shown, but it does not fail the run.
   When the bug is fixed the test starts to pass, and the `todo` mark should be taken off.
-
-## Known bugs the tests describe (marked `todo`)
-
-| Where | What happens | Test |
-| --- | --- | --- |
-| `game.js:4497`, `game.js:4506` | A `chess-diaries` value that is valid JSON but not a list (`null`, `{}`, a number, a word) makes the end of every game throw, and the diary button throw too. | `storage.test.mjs` |
-| `game.js:4355` | A `chess-stickers` value that is valid JSON but not a record (a number, a word, `true`) makes every sticker award throw. | `storage.test.mjs` |
-| `game.js:4030` | When an online game ends by resignation or an agreed draw, `applyState` writes the result and then overwrites it with the turn text ("Your move."). | `online.test.mjs` |
-| `review.js:185`, `review.js:209`, `review.js:347` | The look back on a game with no moves sets its "no moves yet" sentence and then replaces it with an empty line; and it disables the button the browser just focused, so the focus falls back to the page behind the dialog. | `tools.test.mjs`, `keyboard.test.mjs` |
 
 ## Does the net catch fish?
 
@@ -84,12 +75,12 @@ Run with `E2E_TIMEOUT_SCALE=0.25` (every wait gives up four times sooner, so a r
 
 | What was broken (in a copy) | Tests that went red |
 | --- | --- |
-| Castling no longer moves the castle on the page (`game.js` playMove) | 4 red: both castling tests in `rules`, the castling test in `motion`, the reduced-motion flow |
+| Castling no longer moves the castle on the page (`game/` playMove) | 4 red: both castling tests in `rules`, the castling test in `motion`, the reduced-motion flow |
 | Castling no longer moves the castle in the rules (`engine.js` make) | 7 red: the same four, plus the PGN import and look tests that castle |
-| Undo takes back nothing (`game.js` undo) | 6 red: undo in `rules`, undo after the end, undo in `motion`, undo when playing purple, the reduced-motion flow |
-| Promotion always makes a queen (`game.js` askPromotion) | 7 red: promotion with rook, bishop and knight, the dialog test, black promotes, the motion promotion, the FEN import |
-| The puzzle accepts any move (`game.js` puzzleAnswer) | 3 red: the wrong-move test, the win-a-piece wrong-move test, the rush |
-| A `chess-stickers` write is dropped (`game.js` award) | 16 red: the whole game against the computer, every puzzle kind, storage and sticker tests |
-| An inline `style` attribute is injected (`game.js` start) | 125 of 142 red: the Content-Security-Policy violation fails every test that opens the page |
-| `Margins.busy` stuck true after a capture (`game.js` playMove) | 11 red: the capture fight, en passant and promotion, undo and flip, puzzles, the reduced-motion flow |
+| Undo takes back nothing (`game/` undo) | 6 red: undo in `rules`, undo after the end, undo in `motion`, undo when playing purple, the reduced-motion flow |
+| Promotion always makes a queen (`game/` askPromotion) | 7 red: promotion with rook, bishop and knight, the dialog test, black promotes, the motion promotion, the FEN import |
+| The puzzle accepts any move (`game/` puzzleAnswer) | 3 red: the wrong-move test, the win-a-piece wrong-move test, the rush |
+| A `chess-stickers` write is dropped (`game/` award) | 16 red: the whole game against the computer, every puzzle kind, storage and sticker tests |
+| An inline `style` attribute is injected (`game/` start) | 125 of 142 red: the Content-Security-Policy violation fails every test that opens the page |
+| `Margins.busy` stuck true after a capture (`game/` playMove) | 11 red: the capture fight, en passant and promotion, undo and flip, puzzles, the reduced-motion flow |
 

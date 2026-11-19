@@ -33,4 +33,4 @@ All of them run on every push as well.
 
 ## Where things are
 
-`docs/architecture.md` has the map of the files and of the sections inside `game.js`.
+`docs/architecture.md` has the map of the files, and what each file in `game/` holds.

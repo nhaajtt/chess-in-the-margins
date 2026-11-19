@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 // Lint rules for every hand-written script. Run: npm run lint
 // No plugin and no installed package is needed: the rules are the ones ESLint ships with.
 const browser = ["window", "document", "navigator", "location", "history", "localStorage", "sessionStorage", "console", "fetch", "performance",
@@ -28,8 +30,35 @@ const rules = {
   "no-eval": "error", "no-implied-eval": "error", "no-new-func": "error", "no-var": "error", "prefer-const": "error", "eqeqeq": ["error", "always", { null: "ignore" }],
 };
 
+// The files in game/ are one program cut into parts: what one declares at its top, the others may use.
+// Their shared names are read from the files themselves, so nothing has to be listed by hand.
+const shared = {};
+for (const f of fs.readdirSync(new URL("./game/", import.meta.url))) {
+  const text = fs.readFileSync(new URL("./game/" + f, import.meta.url), "utf8");
+  for (const m of text.matchAll(/^(?:async\s+)?function\s*\*?\s*([\w$]+)/gm)) shared[m[1]] = "writable";
+  for (const m of text.matchAll(/^(?:const|let)\s+(.*)$/gm)) {
+    // every name declared on the line: split at the commas that are not inside brackets or quotes
+    let depth = 0, quote = "", piece = "";
+    const pieces = [];
+    for (const c of m[1]) {
+      if (quote) { if (c === quote) quote = ""; }
+      else if (c === "'" || c === '"' || c === "`") quote = c;
+      else if ("([{".includes(c)) depth++;
+      else if (")]}".includes(c)) depth--;
+      if (c === "," && !depth && !quote) { pieces.push(piece); piece = ""; } else piece += c;
+    }
+    pieces.push(piece);
+    for (const p of pieces) {
+      const left = p.split("=")[0].trim();
+      if (/^[\w$]+$/.test(left)) shared[left] = "writable";
+      else if (/^\{.*\}$/.test(left)) for (const n of left.slice(1, -1).split(",")) shared[n.split(":").pop().trim()] = "writable";
+    }
+  }
+}
 export default [
   { ignores: ["vendor/**", "server/node_modules/**", "server/.wrangler/**", "graphify-out/**", "shots/**", "media/**", "assets/**"] },
   { files: ["*.js"], languageOptions: { ecmaVersion: 2023, sourceType: "script", globals: { ...names(browser), ...names(page), importScripts: "readonly" } }, rules },
+  { files: ["game/*.js"], languageOptions: { ecmaVersion: 2023, sourceType: "script", globals: { ...names(browser), ...names(page), ...shared } },
+    rules: { ...rules, "no-unused-vars": ["error", { vars: "local", args: "none", caughtErrors: "none" }], "no-redeclare": ["error", { builtinGlobals: false }], "prefer-const": "off" } },
   { files: ["api/**/*.js", "server/**/*.js", "**/*.mjs"], languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: names(node) }, rules },
 ];

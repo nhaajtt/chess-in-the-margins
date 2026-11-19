@@ -1,6 +1,6 @@
 // The offline copy: the service worker registers, fills its cache, and a second visit works with no network at all.
 //
-// The page registers the worker only on https (game.js, "serviceWorker" line), and the test host is plain http on 127.0.0.1, so the
+// The page registers the worker only on https (game/08-extras.js, "serviceWorker" line), and the test host is plain http on 127.0.0.1, so the
 // test registers /sw.js itself; what is tested is the worker and its cache, not the one line that asks for it.
 import fs from "node:fs";
 import { e2e, assert } from "./harness.mjs";
