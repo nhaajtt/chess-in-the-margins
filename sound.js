@@ -498,7 +498,7 @@
       on = Boolean(v);
       try { localStorage.setItem("chess-sound", on ? "on" : "off"); } catch { /* fine */ }
       if (on) { ready(); if (!REAL.select(5, 0)) SYNTH.select(5, 0); ambience(); rainy(); }
-      else if (ctx) { ambience(null); rainy(); const p = ctx.suspend(); if (p && p.catch) p.catch(() => {}); }
+      else if (ctx) { const kept = ambMode; ambience(null); ambMode = kept; /* remember day or night for when sound comes back */ rainy(); const p = ctx.suspend(); if (p && p.catch) p.catch(() => {}); }
     },
     play(name, ...args) {
       if (!ready()) return;

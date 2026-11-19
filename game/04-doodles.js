@@ -1123,7 +1123,9 @@ function drawDecoIn(at) {
     const paths = all2.filter((p) => !fills.includes(p)).map(dash);
     const lines = [...g.querySelectorAll("line")];
     const texts = [...g.querySelectorAll("text")];
-    G.set([...fills, ...texts, ...lines], { opacity: 0 });
+    // a doodle with no fills, words or lines has nothing to hide (an empty list only makes GSAP warn)
+    const hide = [...fills, ...texts, ...lines];
+    if (hide.length) G.set(hide, { opacity: 0 });
     const tl = G.timeline({ delay: at + i * DECO_STEP, onComplete: () => undash(paths) });
     if (i % 3 === 0) tl.call(() => sfx("pencil", 0.5, 0.45), null, 0);
     tl.call(() => sfx("doodle", i), null, 0.75);

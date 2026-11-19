@@ -127,6 +127,8 @@ async function puzzleAnswer(m) {
   await wait(anim ? 450 : 30);
   // another puzzle may have taken this one's place
   if (game !== mine) return;
+  // the rush clock may have run out during the wait: the answer no longer counts
+  if (over && over.reason === "rush") { busy = false; return; }
   busy = false;
   if (game.status().reason === "checkmate") return;
   const line = puz.line, last = puzStep >= line.length - 1, onLine = uciOf(m) === line[puzStep];
@@ -137,6 +139,7 @@ async function puzzleAnswer(m) {
   busy = true;
   await wait(anim ? 350 : 30);
   if (game !== mine) return;
+  if (over && over.reason === "rush") { busy = false; return; }
   busy = false;
   const reply = (onLine && fromUci(game, line[puzStep + 1])) || game.moves()[0];
   puzStep += 2;

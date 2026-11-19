@@ -50,6 +50,7 @@ Chrome is found from `CHROME_PATH`, then the usual places on Windows, macOS and 
 | `motion.test.mjs` | The same things with the animations on, the opening story, reduced motion. |
 | `keyboard.test.mjs` | Playing with Tab, arrows and Enter; every dialog opens, keeps the focus, closes with Escape and gives the focus back. |
 | `phone.test.mjs` | 390 x 844 with touch: the page loads, a move is played with a finger, every dialog fits. |
+| `guards.test.mjs` | Things that must not happen twice, late or against the wrong game: a mode change while busy, a finished game's replay in the next game, a double-clicked opening or room button, an expired room, no empty GSAP targets on load. |
 | `offline.test.mjs` | The service worker registers and fills its cache; a second visit works with the network off and the server stopped. |
 | `online.test.mjs` | Two pages in a room: create, join, moves both ways, an emote, a draw offer, a cut connection and the way back. Skips itself, with the reason, if the rooms service cannot be started here. |
 | `harness-check.test.mjs` | The net checks itself: the real policy is in force, and every kind of fault is really reported. |

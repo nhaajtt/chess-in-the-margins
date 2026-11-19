@@ -153,3 +153,22 @@ test("leaving puzzle mode hides the puzzle options and the rush line", async (g)
   assert.equal(await g.page.eval(`document.getElementById("rush").hidden`), true);
   assert.equal(await g.fen(), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 });
+
+test("the rush clock running out while a winning move is being answered does not count it as solved", async (g) => {
+  await openPuzzles(g, "rush");
+  // a rush that has climbed far enough to hand out 'win a piece' puzzles: ask for new puzzles until one comes
+  await g.page.eval(`(() => { rush.score = 10; for (let i = 0; i < 200; i++) { rush.next = true; newGame(); if (kindOf(puz) === "win") break; } })()`);
+  const puz = await current(g);
+  assert.equal(puz.kind, "win");
+  await g.click(puz.line[0].slice(0, 2));
+  await g.click(puz.line[0].slice(2, 4));
+  await g.waitFor(`Margins.played().length >= 2 && !Margins.busy`, { label: "the answer to the first move", timeout: 15000 });
+  const [a, b] = [puz.line[2].slice(0, 2), puz.line[2].slice(2, 4)];
+  const sq = (n) => (Number(n[1]) - 1) * 16 + "abcdefgh".indexOf(n[0]);
+  // the last move, and in the same breath the clock runs out
+  await g.page.eval(`(() => { const b = (n) => document.querySelector('#squares button[data-sq="' + n + '"]'); b(${sq(a)}).click(); b(${sq(b)}).click(); rushEnd(); })()`);
+  await g.page.inPage(800);
+  assert.match(await g.status(), /^Time! You solved 10 puzzles/);
+  assert.equal(await g.ls("chess-puzzles-solved"), null, "nothing is added to the solved puzzles");
+  assert.equal(await g.page.eval(`Margins.busy`), false, "the board is not left busy");
+});

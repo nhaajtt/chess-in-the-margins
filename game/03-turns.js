@@ -146,8 +146,10 @@ function finish(st) {
       }
       if (st.reason === "resigned") whiteFlag(winner ^ 1);
       const quick = st.reason === "checkmate" && game.played.length <= 16;
-      if (quick) G.delayedCall(2.6, () => replay(lastMove, game.played.length));
-      if ($(`tray-${winner}`).children.length === 0) G.delayedCall(quick ? 13 : 3.2, () => teamPhoto(winner));
+      // a new game may start before these fire; they belong to this game only
+      const ended = game;
+      if (quick) G.delayedCall(2.6, () => { if (game === ended) replay(lastMove, game.played.length); });
+      if ($(`tray-${winner}`).children.length === 0) G.delayedCall(quick ? 13 : 3.2, () => { if (game === ended) teamPhoto(winner); });
       if (document.querySelector(".d-bunting .d-star")) G.fromTo(".d-bunting .d-star", { y: -6 }, { y: 6, duration: 0.25, yoyo: true, repeat: 9, ease: "sine.inOut", stagger: 0.04 });
       G.fromTo(".d-sun", { rotation: 0, svgOrigin: sunAt }, { rotation: 360, svgOrigin: sunAt, duration: 2.4, ease: "power2.inOut" });
       // a slow camera sweep over the board

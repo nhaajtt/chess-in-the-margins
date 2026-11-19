@@ -89,7 +89,7 @@ $("new").addEventListener("click", () => {
   if (!busy) { if (mode === "puzzle") puzExtra++; newGame(); }
 });
 const again = $("again");
-if (again) again.addEventListener("click", () => { if (busy || !anim) return; book().then(() => { drawDeco(); newGame(true); }); });
+if (again) again.addEventListener("click", () => { if (busy || !anim || $("intro").classList.contains("is-on")) return; /* a story is already playing */ book().then(() => { drawDeco(); newGame(true); }); });
 // flipping turns the whole board round on the table
 $("flip").addEventListener("click", async () => {
   if (busy) return;
@@ -143,8 +143,13 @@ document.querySelectorAll('input[name="mode"]').forEach((i) => i.addEventListene
   $("cpu-opts").disabled = mode !== "cpu";
   paintPuzzleOpts();
   showOnline();
-  if (mode === "online") { onlineMsg(""); if (!busy) { human = 0; newGame(); } return; }
-  if (!busy) newGame();
+  const fresh = () => { if (mode === "online") human = 0; newGame(); };
+  if (mode === "online") onlineMsg("");
+  if (!busy) { fresh(); return; }
+  // busy (a move or the computer's turn in progress): start the new game as soon as it is over, so the old board does not stay under the new mode
+  const old = game, picked = mode;
+  const later = () => { if (game !== old || mode !== picked) return; if (busy) setTimeout(later, 100); else fresh(); };
+  setTimeout(later, 100);
 }));
 const paintPuzzleOpts = () => { const po = $("puzzle-opts"); if (po) po.hidden = mode !== "puzzle"; };
 document.querySelectorAll('input[name="pkind"]').forEach((i) => i.addEventListener("change", () => { puzKind = i.value; puzExtra = 0; if (mode === "puzzle" && !busy) newGame(); }));
@@ -192,7 +197,10 @@ function showOnline() {
 }
 const nameNow = () => { const v = (myName && myName.value.trim()) || "a friend"; store.set("chess-name", v); return v.slice(0, 20); };
 
-$("room-create").addEventListener("click", async () => {
+// one lobby request at a time: a second quick click would open a second room
+let lobbyBusy = false;
+const lobbyOnce = (fn) => async (e) => { if (lobbyBusy) return; lobbyBusy = true; try { await fn(e); } finally { lobbyBusy = false; } };
+$("room-create").addEventListener("click", lobbyOnce(async () => {
   onlineMsg("Opening a room…");
   try {
     const r = await fetch(`${API}/rooms`, { method: "POST" });
@@ -200,9 +208,9 @@ $("room-create").addEventListener("click", async () => {
     const { code } = await r.json();
     enterRoom(code);
   } catch { onlineMsg("The rooms service did not answer. Try again in a moment."); }
-});
+}));
 // play someone now: the rooms service pairs two visitors who are both waiting
-if ($("room-match")) $("room-match").addEventListener("click", async () => {
+if ($("room-match")) $("room-match").addEventListener("click", lobbyOnce(async () => {
   if (!window.Matchmaker) { onlineMsg("Finding a stranger is not available right now."); return; }
   onlineMsg("Looking for someone to play…");
   try {
@@ -210,9 +218,8 @@ if ($("room-match")) $("room-match").addEventListener("click", async () => {
     enterRoom(code);
     if (waiting) onlineMsg("Nobody is waiting yet. Stay here and the next visitor joins you.");
   } catch (err) { onlineMsg((err && err.message) || "The rooms service did not answer. Try again in a moment."); }
-});
-$("room-join").addEventListener("submit", async (e) => {
-  e.preventDefault();
+}));
+const joinOnce = lobbyOnce(async () => {
   const code = $("room-code").value.trim().toUpperCase();
   if (!CODE_RE.test(code)) { onlineMsg("A room code is six letters and numbers."); return; }
   onlineMsg("Looking for the room…");
@@ -223,6 +230,7 @@ $("room-join").addEventListener("submit", async (e) => {
     enterRoom(code);
   } catch { onlineMsg("The rooms service did not answer. Try again in a moment."); }
 });
+$("room-join").addEventListener("submit", (e) => { e.preventDefault(); joinOnce(e); });
 $("room-copy").addEventListener("click", async () => {
   const link = roomLink(net.code);
   try { await navigator.clipboard.writeText(link); onlineMsg("Link copied. Send it to your friend."); }
@@ -267,9 +275,11 @@ function connect() {
   net.ws = ws;
   ws.onopen = () => { net.tries = 0; ws.send(JSON.stringify({ t: "hello", token: store.get(`chess-room-${code}`), name: nameNow() })); };
   ws.onmessage = (e) => { let msg; try { msg = JSON.parse(e.data); } catch { return; } onMessage(msg); };
-  ws.onclose = () => {
+  ws.onclose = (e) => {
     net.ready = false;
     if (net.closing || net.code !== code) return;
+    // the room itself said it has expired: nothing to come back to, so stop trying
+    if (e && e.reason === "room expired") { onlineMsg("This room has expired. Make a new one."); return; }
     // come back on our own: 1, 2, 4… seconds
     const wait2 = Math.min(15000, 1000 * 2 ** net.tries++);
     onlineMsg("Lost the connection. Reconnecting…");
