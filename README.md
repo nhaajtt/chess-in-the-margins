@@ -250,14 +250,14 @@ Một hôm, ai đó vẽ một ngôi sao vàng duy nhất ngay giữa trang. Vua
 Vua Chim Cánh Cụt bảo nét viền là mực tím. Thế là hai bên phân xử theo cách xưa: sáu mươi tư ô cờ, mỗi lượt một nước.
 
 - **Mỗi quân là một sinh vật vẽ bằng code**, có khớp tay chân thật. Chúng biết thở, chớp mắt, nhìn quanh, đi bộ và vẫy tay.
-  Quân bị đe doạ thì run và đổ mồ hôi; vua bị chiếu thì ôm đầu. Dấu hiệu quân cờ luôn nằm trên đầu: vua có thánh giá,
+  Quân bị đe dọa thì run và đổ mồ hôi; vua bị chiếu thì ôm đầu. Dấu hiệu quân cờ luôn nằm trên đầu: vua có thánh giá,
   hậu có viên ngọc, tượng đội mũ có khe, xe có răng cưa, mã là con ngựa.
-- **Ăn quân là đánh nhau**, mỗi loài một đòn riêng: nấm húc đầu, ngựa đá hậu, phù thuỷ phóng tia sét, lâu đài dậm đất,
-  ong vẩy đũa phép, cú tát cánh. Bên thua mắt xoắn ốc, mũ bay mất, ngã ngửa rồi hoá ma bay vào khay.
+- **Ăn quân là đánh nhau**, mỗi loài một đòn riêng: nấm húc đầu, ngựa đá hậu, phù thủy phóng tia sét, lâu đài dậm đất,
+  ong vẩy đũa phép, cú vỗ cánh. Bên thua mắt xoắn ốc, mũ bay mất, ngã ngửa rồi hóa ma bay vào khay.
 - **Cả trang giấy đều sống:** mặt trời, mặt trăng ngủ, cá voi được tô màu dần theo ván cờ, bãi biển có nàng tiên cá,
   cá heo, cua, cùng ếch bắt ruồi, mây mưa tưới hoa, khinh khí cầu, máy bay giấy và mèo ngủ.
-- **Phần mở đầu** là một câu chuyện ngắn song ngữ Anh–Việt, vẽ từng cảnh rồi dùng cục tẩy xoá đi trước khi vẽ cảnh mới.
-- **Chơi online với bạn bè:** tạo phòng, gửi mã 6 ký tự hoặc link, không cần đăng ký, chỉ cần tên. Có biểu cảm, xin hoà, chơi lại; người khác có mã thì vào xem.
+- **Phần mở đầu** là một câu chuyện ngắn song ngữ Anh–Việt, vẽ từng cảnh rồi dùng cục tẩy xóa đi trước khi vẽ cảnh mới.
+- **Chơi online với bạn bè:** tạo phòng, gửi mã 6 ký tự hoặc link, không cần đăng ký, chỉ cần tên. Có biểu cảm, xin hòa, chơi lại; người khác có mã thì vào xem.
 - Chơi với máy (dễ, vừa, khó) hoặc hai người chung một máy; có đồng hồ, undo, lật bàn cờ, xin thua, và chơi được bằng bàn phím.
 - Không framework, không build: HTML, CSS và JavaScript thuần. Engine cờ tự viết, kiểm tra bằng perft.
 

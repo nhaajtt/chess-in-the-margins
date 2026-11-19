@@ -74,7 +74,7 @@
       id: "queen", piece: 5, title: { en: "The bee queen (queen)", vi: "Ong chúa (hậu)" },
       rule: {
         en: "The bee queen does everything the castle and the acorn do: straight lines and diagonals, as far as she likes. She is the strongest of all.",
-        vi: "Ong chúa làm được mọi việc của lâu đài và quả sồi: đi thẳng và đi chéo, xa bao nhiêu cũng được. Nàng mạnh nhất.",
+        vi: "Ong chúa làm được mọi việc của lâu đài và quả sồi: đi thẳng và đi chéo, xa bao nhiêu cũng được. Nàng là quân mạnh nhất.",
       },
       tasks: [
         star(5, "d1", ["h5", "h8"], { en: "Collect both stars. " + TAP.en, vi: "Lấy cả hai ngôi sao. " + TAP.vi }),
@@ -96,7 +96,7 @@
       id: "check", piece: 5, title: { en: "Check", vi: "Chiếu" },
       rule: {
         en: "When a piece could catch the other king on its next move, that is check. The king must get out of the way. Give check with one move.",
-        vi: "Khi một quân có thể bắt vua bên kia ở nước đi sau, đó gọi là chiếu. Vua phải tránh đi. Hãy đi một nước để chiếu.",
+        vi: "Khi một quân có thể bắt vua bên kia ở nước đi kế tiếp, đó gọi là chiếu. Vua phải tránh đi. Hãy đi một nước để chiếu.",
       },
       tasks: [
         real("4k3/8/8/8/8/8/R7/4K3 w - - 0 1", "check", { en: "Move the castle so it looks straight at the purple king.", vi: "Đưa lâu đài đi sao cho nó nhìn thẳng vào vua tím." }),
@@ -104,14 +104,14 @@
       ],
     },
     {
-      id: "mate", piece: 6, title: { en: "Checkmate", vi: "Chiếu bí" },
+      id: "mate", piece: 6, title: { en: "Checkmate", vi: "Chiếu hết" },
       rule: {
         en: "Checkmate is check with no way out: the king cannot step away, nobody can block, and nobody can catch the attacker. The game ends and you win.",
-        vi: "Chiếu bí là chiếu mà không còn đường thoát: vua không chạy được, không ai chắn được, cũng không ai bắt được quân đang chiếu. Ván cờ kết thúc và bạn thắng.",
+        vi: "Chiếu hết là chiếu mà không còn đường thoát: vua không chạy được, không ai chắn được, cũng không ai bắt được quân đang chiếu. Ván cờ kết thúc và bạn thắng.",
       },
       tasks: [
-        real("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", "mate", { en: "The penguin is hemmed in by its own pawns. Find the checkmate in one.", vi: "Chim cánh cụt bị chính các quân tốt của mình chặn kín. Hãy tìm nước chiếu bí.", }),
-        real("k7/8/1K6/8/8/8/8/6Q1 w - - 0 1", "mate", { en: "The king and the queen work together. Find the checkmate in one.", vi: "Vua và nữ hoàng cùng phối hợp. Hãy tìm nước chiếu bí." }),
+        real("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", "mate", { en: "The penguin is hemmed in by its own pawns. Find the checkmate in one.", vi: "Chim cánh cụt bị chính các quân tốt của mình chặn kín. Hãy tìm nước chiếu hết.", }),
+        real("k7/8/1K6/8/8/8/8/6Q1 w - - 0 1", "mate", { en: "The king and the queen work together. Find the checkmate in one.", vi: "Vua và hậu cùng phối hợp. Hãy tìm nước chiếu hết." }),
       ],
     },
     {
@@ -140,7 +140,7 @@
       id: "promotion", piece: 1, title: { en: "Promotion", vi: "Phong cấp" },
       rule: {
         en: "When a mushroom walks all the way to the far side, it grows up into something stronger. In these lessons it becomes a queen.",
-        vi: "Khi cây nấm đi hết đường tới cuối bàn cờ, nó lớn lên thành quân mạnh hơn. Trong các bài này nó trở thành nữ hoàng.",
+        vi: "Khi cây nấm đi hết đường tới cuối bàn cờ, nó lớn lên thành quân mạnh hơn. Trong các bài này nó trở thành hậu.",
       },
       tasks: [
         real("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "promo", { en: "One step left. Walk the mushroom to the far side.", vi: "Chỉ còn một bước. Đưa cây nấm tới cuối bàn cờ." }),

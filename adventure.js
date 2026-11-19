@@ -93,7 +93,7 @@
       title: { en: "The bee queen's honey", vi: "Mật ong của ong chúa" },
       story: {
         en: "The bee queen loves honey and takes everything that looks sweet. She is quick and buzzy, and she left a pony in the hive. You play purple. Do not let her sting your queen.",
-        vi: "Ong chúa mê mật ong và vồ lấy mọi thứ trông ngọt ngào. Nàng nhanh nhẹn và vo ve suốt, lại còn bỏ quên một chú ngựa con trong tổ. Bạn chơi quân tím. Đừng để nàng chích nữ hoàng của bạn nhé.",
+        vi: "Ong chúa mê mật ong và vồ lấy mọi thứ trông ngọt ngào. Nàng nhanh nhẹn và vo ve suốt, lại còn bỏ quên một chú ngựa con trong tổ. Bạn chơi quân tím. Đừng để nàng chích hậu của bạn nhé.",
       },
       win: {
         en: "The bee queen buzzes in a circle, then lands. “What a sweet game,” she says. “Here, have some honey.”",
@@ -154,7 +154,7 @@
     { en: "Nobody wins every page the first time. Shall we try again?", vi: "Không ai thắng ngay lần đầu cả. Mình thử lại nhé?" },
     { en: "Good try! The boss is still smiling, so you can try again.", vi: "Cố gắng tốt lắm! Ông trùm vẫn đang cười, nên bạn thử lại được mà." },
   ];
-  const DRAW = { en: "A draw! Nobody gets the star yet. Try again?", vi: "Hoà rồi! Chưa ai được ngôi sao cả. Thử lại nhé?" };
+  const DRAW = { en: "A draw! Nobody gets the star yet. Try again?", vi: "Hòa rồi! Chưa ai được ngôi sao cả. Thử lại nhé?" };
 
   /* ---------- progress ---------- */
   const margins = () => window.Margins;
