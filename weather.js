@@ -16,6 +16,7 @@
   }
   function canvas() {
     if (W.cv) return W.cv;
+    /** @type {*} */
     const cv = document.createElement("canvas");
     cv.className = "weather";
     cv.setAttribute("aria-hidden", "true");

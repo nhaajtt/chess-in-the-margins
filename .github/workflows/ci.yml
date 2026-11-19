@@ -31,6 +31,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Types
+        run: npm run types
+
       - name: Unit tests (move generator, rules, site checks, notation, puzzles, adventure, rooms server)
         run: npm test
 

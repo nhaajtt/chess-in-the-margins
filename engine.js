@@ -604,6 +604,7 @@
   function think(game, level = "normal", opts = {}) { return search(game, level, opts).move; }
 
   // how the side to move stands: best move and its score in centipawns (mate is about +-MATE), by time or fixed depth
+  /** @param {*} game @param {{ ms?: number, depth?: number }} [opts] */
   function analyse(game, { ms, depth } = {}) {
     const r = run(game, { depth: depth || 64, ms: ms > 0 ? ms : depth ? 600000 : 300, strong: true });
     return { move: r.move, score: r.score, depth: r.depth };

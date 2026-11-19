@@ -154,6 +154,7 @@
       return r;
     },
     openDialog() {
+      /** @type {*} */
       let d = document.getElementById("pgn-dialog");
       const opener = document.activeElement;
       if (!d) {

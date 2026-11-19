@@ -8,6 +8,7 @@
 
   // find({ signal }) -> { code, waiting }
   // waiting is true when you opened the room and a stranger will join, false when you are joining one that waits
+  /** @param {{ signal?: AbortSignal }} [opts] */
   async function find({ signal } = {}) {
     const ctl = new AbortController();
     const stop = () => ctl.abort();
