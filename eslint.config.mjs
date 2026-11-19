@@ -8,7 +8,7 @@ const browser = ["window", "document", "navigator", "location", "history", "loca
   "URL", "URLSearchParams", "Blob", "File", "FileReader", "Image", "Audio", "AudioContext", "OffscreenCanvas", "Path2D", "DOMParser", "XMLSerializer",
   "WebSocket", "Worker", "AbortController", "ResizeObserver", "IntersectionObserver", "MutationObserver", "CustomEvent", "Event", "KeyboardEvent",
   "HTMLElement", "Element", "Node", "SVGElement", "createImageBitmap", "structuredClone", "crypto", "TextEncoder", "TextDecoder", "caches", "self",
-  "Response", "Request", "Headers", "atob", "btoa", "alert", "confirm", "screen", "visualViewport", "CSS", "DOMMatrix", "ImageData", "speechSynthesis", "scrollX", "scrollY"];
+  "Response", "Request", "Headers", "atob", "btoa", "alert", "confirm", "screen", "visualViewport", "CSS", "SVGGraphicsElement", "DOMMatrix", "ImageData", "speechSynthesis", "scrollX", "scrollY"];
 const page = ["gsap", "rough", "ChessEngine", "Creatures", "Themes", "Sound", "Torch", "Sling", "Weather", "Paper", "Margins", "Thinker", "Look",
   "Matchmaker", "Pgn", "Review", "Openings", "Adventure", "School", "CHESS_PUZZLES"];
 const node = ["process", "Buffer", "console", "URL", "URLSearchParams", "fetch", "setTimeout", "clearTimeout", "setInterval", "clearInterval", "WebSocket",
