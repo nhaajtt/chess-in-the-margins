@@ -101,7 +101,7 @@
       // the room goes dark, then click: the torch comes on and the pool of light opens up
       G.timeline({ onUpdate: layout })
         .to(T, { dark: o.dark || 0.68, duration: 0.9, ease: "power1.inOut" })
-        .call(() => { if (o.sfx) o.sfx("torch"); })
+        .call(() => { if (T.on && o.sfx) o.sfx("torch"); }) /* not if it was switched off meanwhile */
         .to(T, { k: 1, duration: 0.6, ease: "back.out(1.6)" });
     } else {
       const gone = () => { layout(); if (!T.on) T.shade.style.display = "none"; };

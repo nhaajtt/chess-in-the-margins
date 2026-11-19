@@ -399,7 +399,7 @@
 
     /* ---------- the hand on the band ---------- */
     let pulling = false, power = 0, aim = null;
-    grab.addEventListener("pointerdown", (e) => { if (broken || inFlight) return; pulling = true; holder.classList.add("is-pulling"); grab.setPointerCapture(e.pointerId); e.preventDefault(); if (SND.unlock) SND.unlock(); });
+    grab.addEventListener("pointerdown", (e) => { if (broken || inFlight) return; pulling = true; holder.classList.add("is-pulling"); try { grab.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ } e.preventDefault(); if (SND.unlock) SND.unlock(); });
     grab.addEventListener("pointermove", (e) => {
       if (!pulling) return;
       const p = toSvg(e);

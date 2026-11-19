@@ -18,7 +18,8 @@
     if (!ctx) {
       const AC = root.AudioContext || root.webkitAudioContext;
       if (!AC) return false;
-      ctx = new AC();
+      // a browser that refuses to make another audio context must not break the game
+      try { ctx = new AC(); } catch { return false; }
       // the chain: everything -> soft low-pass -> a little room -> gentle compressor -> speakers
       const soft = ctx.createBiquadFilter();
       soft.type = "lowpass"; soft.frequency.value = 4200; soft.Q.value = 0.5;
@@ -38,7 +39,8 @@
       bus.connect(dry); bus.connect(room);
       load();
     }
-    if (ctx.state === "suspended") ctx.resume();
+    // resume() can be refused; that must not surface as an unhandled rejection
+    if (ctx.state === "suspended") { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); }
     return true;
   }
   // a short, dark room: decaying noise with the highs taken out
@@ -407,8 +409,9 @@
   let ambMode = null, ambTimer = 0, ambNow = null, callTimer = 0;
   function ambience(mode = ambMode) {
     ambMode = mode;
-    if (!ctx || !on) return;
-    const name = mode ? "amb-" + mode : null;
+    // when sound is switched off the loop must still be stopped, or its timers keep queueing sounds on the paused context
+    if (!ctx) return;
+    const name = on && mode ? "amb-" + mode : null;
     if (ambNow && (ambNow.name !== name || document.hidden)) {
       const old = ambNow;
       ambNow = null;
@@ -495,7 +498,7 @@
       on = Boolean(v);
       try { localStorage.setItem("chess-sound", on ? "on" : "off"); } catch { /* fine */ }
       if (on) { ready(); if (!REAL.select(5, 0)) SYNTH.select(5, 0); ambience(); rainy(); }
-      else if (ctx) { ambience(null); rainy(); ctx.suspend(); }
+      else if (ctx) { ambience(null); rainy(); const p = ctx.suspend(); if (p && p.catch) p.catch(() => {}); }
     },
     play(name, ...args) {
       if (!ready()) return;
@@ -510,7 +513,7 @@
     // how loud, 0..1 (remembered); 0 is as good as off
     get volume() { return vol; },
     setVolume(v) {
-      vol = Math.max(0, Math.min(1, v));
+      vol = Math.max(0, Math.min(1, Number(v) || 0)); // a non-number would break the gain ramp below
       try { localStorage.setItem("chess-volume", String(vol)); } catch { /* fine */ }
       if (master) master.gain.setTargetAtTime(0.9 * vol, ctx.currentTime, 0.05);
     },

@@ -488,7 +488,8 @@
       const cv = document.createElement("canvas");
       cv.width = W; cv.height = H;
       cv.getContext("2d").drawImage(im, 0, 0, W, H);
-      cv.toBlob(ok, "image/png");
+      // hand the canvas's memory back at once (Safari keeps a tight limit on canvas memory)
+      cv.toBlob((blob) => { cv.width = cv.height = 0; ok(blob); }, "image/png");
     });
   }
   function encode(im, W, H) {
