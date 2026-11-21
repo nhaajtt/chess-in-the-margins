@@ -41,7 +41,7 @@ test("the manifest's icons exist", () => {
 });
 
 test("the security headers allow the rooms service and nothing loose", () => {
-  const api = read("game.js").match(/"(https:\/\/[a-z0-9.-]+\.workers\.dev)"/)[1];
+  const api = read("game/07-controls.js").match(/"(https:\/\/[a-z0-9.-]+\.workers\.dev)"/)[1];
   const connect = directive("connect-src");
   assert.ok(connect.includes(api), "connect-src misses the rooms service");
   assert.ok(connect.includes(api.replace(/^https/, "wss")), "connect-src misses the rooms websocket");

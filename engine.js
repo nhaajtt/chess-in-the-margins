@@ -29,6 +29,12 @@
     return piece & BLACK ? t[r * 8 + f] : t[(7 - r) * 8 + f];
   };
 
+  // Zobrist keys (two independent 32-bit halves) from a fixed seed, so the same position always hashes the same
+  let seed = 0x2545f491;
+  const rnd = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed | 0; };
+  const keys = (n) => Int32Array.from({ length: n }, rnd);
+  const Z1 = keys(2048), Z2 = keys(2048), C1 = keys(16), C2 = keys(16), E1 = keys(128), E2 = keys(128), S1 = rnd(), S2 = rnd();
+
   const name = (sq) => "abcdefgh"[sq & 7] + ((sq >> 4) + 1);
   const parse = (s) => (s.charCodeAt(1) - 49) * 16 + (s.charCodeAt(0) - 97);
 
@@ -53,13 +59,43 @@
       });
       this.turn = turn === "b" ? 1 : 0;
       this.castling = (cast.includes("K") ? 1 : 0) | (cast.includes("Q") ? 2 : 0) | (cast.includes("k") ? 4 : 0) | (cast.includes("q") ? 8 : 0);
+      // a castling right only counts while its king and its castle still stand at home
+      const home = (sq, piece) => this.board[sq] === piece;
+      if (!home(4, K)) this.castling &= ~3;
+      if (!home(7, R)) this.castling &= ~1;
+      if (!home(0, R)) this.castling &= ~2;
+      if (!home(116, K | BLACK)) this.castling &= ~12;
+      if (!home(119, R | BLACK)) this.castling &= ~4;
+      if (!home(112, R | BLACK)) this.castling &= ~8;
       this.ep = ep && ep !== "-" ? parse(ep) : -1;
       this.half = Number(half || 0);
       this.full = Number(full || 1);
       this.stack = [];
       this.played = [];
+      this.hashAll();
       this.keys = [this.key()];
     }
+
+    // the position's hash, rebuilt from scratch here and then kept up to date by make/unmake
+    hashAll() {
+      let a = 0, b = 0;
+      for (let sq = 0; sq < 128; sq++) {
+        if (sq & 0x88) { sq += 7; continue; }
+        const p = this.board[sq];
+        if (p) { a ^= Z1[p << 7 | sq]; b ^= Z2[p << 7 | sq]; }
+      }
+      a ^= C1[this.castling]; b ^= C2[this.castling];
+      if (this.ep >= 0) { a ^= E1[this.ep]; b ^= E2[this.ep]; }
+      if (this.turn) { a ^= S1; b ^= S2; }
+      this.h1 = a; this.h2 = b;
+    }
+    // pass the turn without moving (the search uses this to test how safe the side to move is)
+    nullMake() {
+      if (this.ep >= 0) { this.h1 ^= E1[this.ep]; this.h2 ^= E2[this.ep]; }
+      this.h1 ^= S1; this.h2 ^= S2;
+      this.ep = -1; this.turn ^= 1;
+    }
+    nullUnmake(ep, h1, h2) { this.turn ^= 1; this.ep = ep; this.h1 = h1; this.h2 = h2; }
 
     fen() {
       const rows = [];
@@ -169,7 +205,8 @@
 
     make(m) {
       const b = this.board, us = this.turn;
-      this.stack.push({ castling: this.castling, ep: this.ep, half: this.half, full: this.full, kings: this.kings.slice() });
+      this.stack.push({ castling: this.castling, ep: this.ep, half: this.half, full: this.full, kings: this.kings.slice(), h1: this.h1, h2: this.h2 });
+      const oc = this.castling, oe = this.ep;
       b[m.to] = m.promo || m.piece;
       b[m.from] = 0;
       if (m.flags & F_EP) b[m.to + (us ? 16 : -16)] = 0;
@@ -185,6 +222,16 @@
       this.half = (m.piece & 7) === P || m.captured ? 0 : this.half + 1;
       if (us) this.full++;
       this.turn ^= 1;
+      // hash: lift the mover, drop it on its new square, remove what it took, move a castling rook, then the flags
+      const pc = m.piece, np = m.promo || pc, rk = R | (us ? BLACK : 0);
+      let a = this.h1 ^ Z1[pc << 7 | m.from] ^ Z1[np << 7 | m.to] ^ C1[oc] ^ C1[this.castling] ^ S1;
+      let c = this.h2 ^ Z2[pc << 7 | m.from] ^ Z2[np << 7 | m.to] ^ C2[oc] ^ C2[this.castling] ^ S2;
+      if (m.captured) { const cs = m.flags & F_EP ? m.to + (us ? 16 : -16) : m.to; a ^= Z1[m.captured << 7 | cs]; c ^= Z2[m.captured << 7 | cs]; }
+      if (m.flags & F_KCASTLE) { a ^= Z1[rk << 7 | (m.to + 1)] ^ Z1[rk << 7 | (m.to - 1)]; c ^= Z2[rk << 7 | (m.to + 1)] ^ Z2[rk << 7 | (m.to - 1)]; }
+      if (m.flags & F_QCASTLE) { a ^= Z1[rk << 7 | (m.to - 2)] ^ Z1[rk << 7 | (m.to + 1)]; c ^= Z2[rk << 7 | (m.to - 2)] ^ Z2[rk << 7 | (m.to + 1)]; }
+      if (oe >= 0) { a ^= E1[oe]; c ^= E2[oe]; }
+      if (this.ep >= 0) { a ^= E1[this.ep]; c ^= E2[this.ep]; }
+      this.h1 = a; this.h2 = c;
     }
     unmake(m) {
       const b = this.board, s = this.stack.pop();
@@ -195,7 +242,7 @@
       if (m.flags & F_EP) b[m.to + (us ? 16 : -16)] = m.captured;
       if (m.flags & F_KCASTLE) { b[m.to + 1] = b[m.to - 1]; b[m.to - 1] = 0; }
       if (m.flags & F_QCASTLE) { b[m.to - 2] = b[m.to + 1]; b[m.to + 1] = 0; }
-      Object.assign(this, { castling: s.castling, ep: s.ep, half: s.half, full: s.full, kings: s.kings });
+      Object.assign(this, { castling: s.castling, ep: s.ep, half: s.half, full: s.full, kings: s.kings, h1: s.h1, h2: s.h2 });
     }
 
     moves(opts = {}) {
@@ -285,20 +332,136 @@
   /* ---------- the opponent ---------- */
 
   const MATE = 100000;
-  const order = (moves) => moves.sort((a, b) => score(b) - score(a));
-  const score = (m) => (m.captured ? 10 * VALUE[m.captured & 7] - VALUE[m.piece & 7] : 0) + (m.promo ? VALUE[m.promo & 7] : 0);
+  const STYLES = ["careful", "reckless", "greedy", "sleepy"];
+  // easy and normal keep the plain search and the old board sense; hard and master search deeper with all the tricks
+  const LEVELS = {
+    easy: { depth: 1, ms: 600, strong: false, noise: 60 },
+    normal: { depth: 2, ms: 600, strong: false },
+    hard: { depth: 64, ms: 1000, strong: true },
+    master: { depth: 64, ms: 2500, strong: true },
+  };
 
-  function think(game, level = "normal") {
-    const depthFor = { easy: 1, normal: 2, hard: 4 }[level] || 2;
-    const deadline = Date.now() + (level === "hard" ? 1000 : 600);
+  // king squares for the late game: the middle is the place to be (tables read like a board, rank 8 first)
+  PST.kEnd = [-50,-40,-30,-20,-20,-30,-40,-50, -30,-20,-10,0,0,-10,-20,-30, -30,-10,20,30,30,20,-10,-30, -30,-10,30,40,40,30,-10,-30, -30,-10,30,40,40,30,-10,-30, -30,-10,20,30,30,20,-10,-30, -30,-30,0,0,0,0,-30,-30, -50,-30,-30,-30,-30,-30,-30,-50];
+  const PASSED = [0, 10, 15, 25, 45, 75, 120, 0];
+  const cheb = (a, b) => Math.max(Math.abs((a >> 4) - (b >> 4)), Math.abs((a & 7) - (b & 7)));
+  const hi = [new Int8Array(8), new Int8Array(8)], lo = [new Int8Array(8), new Int8Array(8)], cnt = [new Int8Array(8), new Int8Array(8)];
+  const pawnAt = new Int16Array(16), rookAt = new Int16Array(8);
+
+  // a fuller look at the board than Game.evaluate, in centipawns for the side to move; `style` and `me` tilt it toward a playing character
+  function evalPos(g, style, me) {
+    const b = g.board, mat = [0, 0], shield = [0, 0], bish = [0, 0], style_ = [0, 0];
+    let phase = 0, np = 0, nr = 0, pos = 0, pieces = 0, lone = 0;
+    for (let c = 0; c < 2; c++) { hi[c].fill(-1); lo[c].fill(8); cnt[c].fill(0); }
+    const ek = g.kings[me ^ 1];
+    for (let sq = 0; sq < 128; sq++) {
+      if (sq & 0x88) { sq += 7; continue; }
+      const p = b[sq];
+      if (!p) continue;
+      const kind = p & 7, c = p & BLACK ? 1 : 0, r = sq >> 4, f = sq & 7;
+      if (kind === K) continue;
+      mat[c] += VALUE[kind];
+      pos += (c ? -1 : 1) * pst(p, sq);
+      if (kind === P) {
+        pawnAt[np++] = sq; cnt[c][f]++;
+        if (r > hi[c][f]) hi[c][f] = r;
+        if (r < lo[c][f]) lo[c][f] = r;
+      } else {
+        pieces++;
+        phase += kind === Q ? 4 : kind === R ? 2 : 1;
+        if (kind === B) bish[c]++; else if (kind === R) rookAt[nr++] = sq;
+        if (kind === N || kind === B) lone++;
+      }
+      if (style === "reckless" && c === me) style_[0] += kind === P ? (c ? 6 - r : r - 1) * 3 : (7 - cheb(sq, ek)) * 4;
+    }
+    if (phase > 24) phase = 24;
+    let s = mat[0] - mat[1] + pos + (bish[0] > 1 ? 30 : 0) - (bish[1] > 1 ? 30 : 0);
+    // dead drawn endings: bare kings, or one lone minor piece and nothing else
+    if (!np && !nr && mat[0] + mat[1] < 700 && lone < 2 && pieces === lone) return 0;
+    // pawns: passed ones count more the nearer they are to promotion, doubled ones count less
+    for (let i = 0; i < np; i++) {
+      const sq = pawnAt[i], c = b[sq] & BLACK ? 1 : 0, r = sq >> 4, f = sq & 7, e = c ^ 1;
+      let free = true;
+      for (let x = Math.max(f - 1, 0); x <= Math.min(f + 1, 7); x++) if (c ? lo[e][x] < r : hi[e][x] > r) { free = false; break; }
+      if (free) s += c ? -PASSED[6 - r] : PASSED[r - 1];
+    }
+    for (let c = 0; c < 2; c++) for (let f = 0; f < 8; f++) if (cnt[c][f] > 1) s += c ? 12 * (cnt[c][f] - 1) : -12 * (cnt[c][f] - 1);
+    // rooks like files with no pawn of their own
+    for (let i = 0; i < nr; i++) {
+      const sq = rookAt[i], c = b[sq] & BLACK ? 1 : 0, f = sq & 7;
+      if (!cnt[c][f]) s += (c ? -1 : 1) * (cnt[c ^ 1][f] ? 10 : 18);
+    }
+    // kings: tucked behind pawns while the board is full, in the middle once it empties
+    for (let c = 0; c < 2; c++) {
+      const sq = g.kings[c], f = sq & 7, w = c ? -1 : 1, dir = c ? -16 : 16;
+      const k = PST[K], e = PST.kEnd, i = c ? (sq >> 4) * 8 + f : (7 - (sq >> 4)) * 8 + f;
+      let sh = 0;
+      for (let x = Math.max(f - 1, 0); x <= Math.min(f + 1, 7); x++) {
+        const one = b[sq + dir - f + x], two = b[sq + 2 * dir - f + x], pawn = P | (c ? BLACK : 0);
+        sh += one === pawn ? 12 : two === pawn ? 6 : -8;
+      }
+      if ((sq + dir) & 0x88) sh = 0;
+      shield[c] = sh * phase / 24;
+      s += w * ((k[i] * phase + e[i] * (24 - phase)) / 24 + shield[c]);
+    }
+    if (style) {
+      const o = me ^ 1;
+      if (style === "greedy") style_[0] += 0.5 * (mat[me] - mat[o]);
+      else if (style === "careful") {
+        style_[0] += shield[me] + 6 * (cnt[me].reduce((x, y) => x + y, 0));
+        if (mat[me] < mat[o] - 100) style_[0] += 5 * pieces;
+      } else if (style === "reckless" && g.turn !== me && g.inCheck()) style_[0] += 40;
+      s += me ? -style_[0] : style_[0];
+    }
+    s += g.turn ? -10 : 10;
+    return g.turn ? -s : s;
+  }
+
+  // transposition table, shared between searches and wiped at the start of each (styles change the scores)
+  const TT_MASK = (1 << 18) - 1;
+  let ttKey, ttMove, ttScore, ttDepth, ttFlag;
+  const ttReset = () => {
+    if (ttFlag) { ttFlag.fill(0); return; }
+    ttKey = new Int32Array(TT_MASK + 1); ttMove = new Int32Array(TT_MASK + 1); ttScore = new Int32Array(TT_MASK + 1);
+    ttDepth = new Int8Array(TT_MASK + 1); ttFlag = new Uint8Array(TT_MASK + 1);
+  };
+  const moveKey = (m) => m.from | m.to << 7 | (m.promo & 7) << 14;
+  const INF = 1000000;
+
+  // one search of the position in `game`, returning { move, score, depth, nodes }; the game is left as it was
+  function run(game, cfg) {
+    const strong = cfg.strong, style = cfg.style || "", me = game.turn, noise = cfg.noise || 0, margin = cfg.margin || 0;
+    const deadline = Date.now() + cfg.ms;
     let nodes = 0, stop = false;
+    const killers = new Int32Array(256), hist = new Int32Array(2048), path = new Int32Array(256);
+    const fresh = strong || style;
+    const evalNow = fresh ? () => evalPos(game, style, me) : () => game.evaluate();
+    if (strong) ttReset();
+
+    const rank = (moves, ttm, ply) => {
+      for (const m of moves) {
+        const k = moveKey(m);
+        let s;
+        if (k === ttm) s = 1e7;
+        else if (m.captured) s = 1e6 + 10 * VALUE[m.captured & 7] - VALUE[m.piece & 7] + (m.promo ? VALUE[m.promo & 7] : 0);
+        else if (m.promo) s = 9e5 + VALUE[m.promo & 7];
+        else if (k === killers[ply << 1]) s = 8e5;
+        else if (k === killers[ply << 1 | 1]) s = 7e5;
+        else s = hist[m.piece << 7 | m.to];
+        if (style === "greedy" && m.captured) s += 5e5;
+        else if (style === "reckless" && !m.captured) s += 5000 - 300 * cheb(m.to, game.kings[me ^ 1]);
+        m.s = s;
+      }
+      return moves.sort((a, b) => b.s - a.s);
+    };
 
     function quiesce(alpha, beta, qd) {
-      const stand = game.evaluate();
+      ++nodes;
+      const stand = evalNow();
       if (stand >= beta) return beta;
       if (stand > alpha) alpha = stand;
       if (qd > 6) return alpha;
-      for (const m of order(game.pseudo(true))) {
+      for (const m of rank(game.pseudo(true), 0, 0)) {
         const us = game.turn;
         game.make(m);
         if (game.attacked(game.kings[us], us ^ 1)) { game.unmake(m); continue; }
@@ -309,45 +472,142 @@
       }
       return alpha;
     }
-    function search(depth, alpha, beta, ply) {
-      if ((++nodes & 1023) === 0 && Date.now() > deadline) stop = true;
+
+    function search(depth, alpha, beta, ply, nullOk) {
+      if ((++nodes & 2047) === 0 && Date.now() > deadline) stop = true;
       if (stop) return 0;
-      if (depth === 0) return quiesce(alpha, beta, 0);
-      let any = false;
-      for (const m of order(game.pseudo())) {
+      const inChk = game.inCheck();
+      let ttm = 0;
+      const pv = beta - alpha > 1;
+      if (strong) {
+        if (ply >= 120) return evalNow();
+        if (game.half >= 100) return 0;
+        const h = game.h1;
+        for (let i = ply - 2; i >= 0; i -= 2) if (path[i] === h) return 0;
+        path[ply] = h;
+        if (inChk && ply < 60) depth++;
+        if (depth > 0) {
+          const i = h & TT_MASK;
+          if (ttFlag[i] && ttKey[i] === game.h2) {
+            ttm = ttMove[i];
+            if (!pv && ttDepth[i] >= depth) {
+              let sc = ttScore[i];
+              if (sc > MATE - 200) sc -= ply; else if (sc < 200 - MATE) sc += ply;
+              const f = ttFlag[i];
+              if (f === 1 || (f === 2 && sc >= beta) || (f === 3 && sc <= alpha)) return sc;
+            }
+          }
+        }
+      }
+      if (depth <= 0) return quiesce(alpha, beta, 0);
+      // null move: if even passing the turn keeps the score above beta, this line is too good to be played
+      if (strong && !pv && !inChk && nullOk && depth >= 3 && evalNow() >= beta) {
+        let rich = false;
+        const side = game.turn ? BLACK : 0;
+        for (let sq = 0; sq < 128 && !rich; sq++) {
+          if (sq & 0x88) { sq += 7; continue; }
+          const p = game.board[sq];
+          if (p && (p & BLACK) === side && (p & 7) > P && (p & 7) < K) rich = true;
+        }
+        if (rich) {
+          const ep = game.ep, h1 = game.h1, h2 = game.h2;
+          game.nullMake();
+          const v = -search(depth - (depth > 6 ? 4 : 3), -beta, -beta + 1, ply + 1, false);
+          game.nullUnmake(ep, h1, h2);
+          if (stop) return 0;
+          if (v >= beta) return v > MATE - 200 ? beta : v;
+        }
+      }
+      const a0 = alpha;
+      let any = false, best = -INF, bestMove = null, n = 0;
+      for (const m of rank(game.pseudo(), ttm, ply)) {
         const us = game.turn;
         game.make(m);
         if (game.attacked(game.kings[us], us ^ 1)) { game.unmake(m); continue; }
-        any = true;
-        const v = -search(depth - 1, -beta, -alpha, ply + 1);
+        any = true; n++;
+        const quiet = !m.captured && !m.promo;
+        let v;
+        if (!strong || n === 1) v = -search(depth - 1, -beta, -alpha, ply + 1, true);
+        else {
+          // later quiet moves are searched shallower first, and only looked at fully if they surprise
+          const r = depth >= 3 && n > 4 && quiet && !inChk ? 1 + (n > 10 ? 1 : 0) : 0;
+          v = -search(depth - 1 - r, -alpha - 1, -alpha, ply + 1, true);
+          if (v > alpha && r) v = -search(depth - 1, -alpha - 1, -alpha, ply + 1, true);
+          if (v > alpha && v < beta) v = -search(depth - 1, -beta, -alpha, ply + 1, true);
+        }
         game.unmake(m);
         if (stop) return 0;
-        if (v >= beta) return beta;
+        if (v > best) { best = v; bestMove = m; }
         if (v > alpha) alpha = v;
+        if (alpha >= beta) {
+          if (quiet) {
+            const k = moveKey(m);
+            if (killers[ply << 1] !== k) { killers[ply << 1 | 1] = killers[ply << 1]; killers[ply << 1] = k; }
+            const hi_ = m.piece << 7 | m.to;
+            hist[hi_] += depth * depth;
+            if (hist[hi_] > 4e5) for (let j = 0; j < 2048; j++) hist[j] >>= 1;
+          }
+          break;
+        }
       }
-      if (!any) return game.inCheck() ? -MATE + ply : 0;
-      return alpha;
+      if (!any) return inChk ? -MATE + ply : 0;
+      if (strong) {
+        const i = game.h1 & TT_MASK;
+        const sc = best > MATE - 200 ? best + ply : best < 200 - MATE ? best - ply : best;
+        ttKey[i] = game.h2; ttMove[i] = bestMove ? moveKey(bestMove) : 0; ttScore[i] = sc; ttDepth[i] = depth;
+        ttFlag[i] = best >= beta ? 2 : best > a0 ? 1 : 3;
+      }
+      return best;
     }
 
-    const legal = order(game.moves());
-    if (!legal.length) return null;
-    let best = legal[0];
-    // iterative deepening: keep the best move of the last finished depth
-    for (let d = 1; d <= depthFor; d++) {
-      let alpha = -Infinity, choice = null;
-      const ranked = [best, ...legal.filter((m) => m !== best)];
+    const legal = game.moves();
+    if (!legal.length) return { move: null, score: game.inCheck() ? -MATE : 0, depth: 0, nodes: 0 };
+    rank(legal, 0, 0);
+    let best = legal[0], bestScore = 0, done = 0;
+    path[0] = game.h1;
+    // iterative deepening: keep the best move of the last finished depth, and try it first at the next
+    for (let d = 1; d <= cfg.depth; d++) {
+      let alpha = -INF, choice = null, first = true;
+      const ranked = [best, ...legal.filter((m) => m !== best).sort((a, b) => (b.rs ?? b.s) - (a.rs ?? a.s))];
       for (const m of ranked) {
         game.make(m);
-        let v = -search(d - 1, -Infinity, -alpha, 1);
+        let v;
+        if (strong && !noise && !margin && !first) {
+          v = -search(d - 1, -alpha - 1, -alpha, 1, true);
+          if (v > alpha) v = -search(d - 1, -INF, -alpha, 1, true);
+        } else v = -search(d - 1, -INF, -(alpha - margin), 1, true);
         game.unmake(m);
         if (stop) break;
-        if (level === "easy") v += Math.random() * 120 - 60;
+        first = false;
+        m.rs = v;
+        if (noise) v += Math.random() * 2 * noise - noise;
+        if (style === "sleepy" && (m.captured || m.promo)) v -= 20;
         if (v > alpha) { alpha = v; choice = m; }
       }
-      if (stop) break;
-      if (choice) best = choice;
+      if (choice) { best = choice; bestScore = alpha; done = d; }
+      if (stop || alpha > MATE - 200 || alpha < 200 - MATE) break;
     }
-    return best;
+    delete best.s; delete best.rs;
+    return { move: best, score: bestScore, depth: done, nodes };
+  }
+
+  // search(game, level, { style, ms }) -> { move, score, depth, nodes }
+  function search(game, level = "normal", opts = {}) {
+    const lv = LEVELS[level] || LEVELS.normal;
+    const style = STYLES.includes(opts.style) ? opts.style : "";
+    const sleepy = style === "sleepy";
+    return run(game, {
+      depth: sleepy ? Math.min(lv.depth, 4) : lv.depth, ms: opts.ms > 0 ? opts.ms : lv.ms, strong: lv.strong, style,
+      noise: sleepy ? 35 : lv.noise || 0, margin: sleepy ? 70 : 0,
+    });
+  }
+  function think(game, level = "normal", opts = {}) { return search(game, level, opts).move; }
+
+  // how the side to move stands: best move and its score in centipawns (mate is about +-MATE), by time or fixed depth
+  /** @param {*} game @param {{ ms?: number, depth?: number }} [opts] */
+  function analyse(game, { ms, depth } = {}) {
+    const r = run(game, { depth: depth || 64, ms: ms > 0 ? ms : depth ? 600000 : 300, strong: true });
+    return { move: r.move, score: r.score, depth: r.depth };
   }
 
   function perft(game, depth) {
@@ -357,5 +617,5 @@
     return n;
   }
 
-  root.ChessEngine = { Game, think, perft, name, parse, START, P, N, B, R, Q, K, BLACK, VALUE, F_CAPTURE, F_EP, F_KCASTLE, F_QCASTLE, F_PROMO };
+  root.ChessEngine = { Game, think, search, analyse, MATE, perft, name, parse, START, P, N, B, R, Q, K, BLACK, VALUE, F_CAPTURE, F_EP, F_KCASTLE, F_QCASTLE, F_PROMO };
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : this);

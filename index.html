@@ -22,6 +22,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cabin+Sketch:wght@400;700&family=Kalam:wght@300;400;700&family=Patrick+Hand&display=swap">
 <link rel="stylesheet" href="/chess.css">
+<link rel="stylesheet" href="/look.css">
+<link rel="stylesheet" href="/review.css">
+<link rel="stylesheet" href="/adventure.css">
+<link rel="stylesheet" href="/school.css">
   <script defer src="/_vercel/insights/script.js"></script>
   <script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
@@ -36,7 +40,7 @@
 </header>
 
 <!-- The opening: one line written by hand on a blank page, then the camera drops to the board. -->
-<!-- The opening: a short story in English and Vietnamese, drawn scene by scene and rubbed out between scenes (built by game.js). -->
+<!-- The opening: a short story in English and Vietnamese, drawn scene by scene and rubbed out between scenes (built by game/09-story.js). -->
 <div class="cx-intro" id="intro" aria-hidden="true">
   <button class="cx-intro__skip" id="intro-skip" type="button" tabindex="-1">skip</button>
 </div>
@@ -65,6 +69,8 @@
    <div class="cx-side__a">
     <p class="cx-status" id="status" role="status" aria-live="polite">Your move. You play the orange team.</p>
 
+    <p class="cx-rush" id="rush" hidden></p>
+
     <div class="cx-clocks" id="clocks" hidden>
       <p class="cx-clock" data-side="1"><span class="cx-clock__who">purple</span><span class="cx-clock__time" id="clock-1"></span></p>
       <p class="cx-clock" data-side="0"><span class="cx-clock__who">orange</span><span class="cx-clock__time" id="clock-0"></span></p>
@@ -84,6 +90,13 @@
     <button class="cx-note cx-note--resign" id="resign" type="button">resign?</button>
       <button class="cx-btn" id="card" type="button" hidden>Save the result card</button>
       <button class="cx-btn" id="diary" type="button" hidden>Read the diary</button>
+    <h2 class="cx-side__head">More to do</h2>
+    <p class="cx-buttons cx-buttons--more">
+      <button class="cx-btn" id="adventure-btn" type="button">The golden star</button>
+      <button class="cx-btn" id="school-btn" type="button">How the creatures move</button>
+      <button class="cx-btn" id="look-back-btn" type="button">Look back at the game</button>
+      <button class="cx-btn" id="pgn-btn" type="button">Save or load a game</button>
+    </p>
    </div>
    <div class="cx-side__b">
 
@@ -92,21 +105,33 @@
       <label><input type="radio" name="mode" value="cpu" checked> me against the computer</label>
       <label><input type="radio" name="mode" value="friend"> two of us on this screen</label>
       <label><input type="radio" name="mode" value="online"> a friend, online</label>
-      <label><input type="radio" name="mode" value="puzzle"> today's puzzle: mate in two</label>
+      <label><input type="radio" name="mode" value="puzzle"> today's puzzles</label>
+    </fieldset>
+    <fieldset class="cx-opts" id="puzzle-opts" hidden>
+      <legend>The puzzle</legend>
+      <label><input type="radio" name="pkind" value="mate1"> mate in one</label>
+      <label><input type="radio" name="pkind" value="mate2" checked> mate in two</label>
+      <label><input type="radio" name="pkind" value="mate3"> mate in three</label>
+      <label><input type="radio" name="pkind" value="win"> win a piece</label>
+      <label class="cx-opts__wide"><input type="radio" name="pkind" value="rush"> rush: as many as you can in 3 minutes</label>
     </fieldset>
     <fieldset class="cx-opts" id="cpu-opts">
       <legend>The computer</legend>
       <label><input type="radio" name="level" value="easy"> easy</label>
       <label><input type="radio" name="level" value="normal" checked> normal</label>
       <label><input type="radio" name="level" value="hard"> hard</label>
+      <label><input type="radio" name="level" value="master"> master</label>
       <label><input type="radio" name="level" value="teach"> teach me</label>
       <label class="cx-opts__wide"><input type="checkbox" id="play-purple"> I play the purple team</label>
     </fieldset>
     <fieldset class="cx-opts" id="clock-opts">
       <legend>Clock</legend>
       <label><input type="radio" name="clock" value="0" checked> none</label>
+      <label><input type="radio" name="clock" value="1"> 1 min</label>
+      <label><input type="radio" name="clock" value="3"> 3 min</label>
       <label><input type="radio" name="clock" value="5"> 5 min</label>
       <label><input type="radio" name="clock" value="10"> 10 min</label>
+      <label class="cx-opts__wide"><input type="checkbox" id="clock-inc"> 2 seconds back for every move</label>
     </fieldset>
 
     <!-- playing a friend online: open a room, send its code or link, play -->
@@ -114,6 +139,7 @@
       <div class="cx-online__lobby" id="lobby">
         <label class="cx-field">Your name <input id="my-name" maxlength="20" autocomplete="nickname" spellcheck="false"></label>
         <button class="cx-btn cx-btn--solid" id="room-create" type="button">Open a room</button>
+        <button class="cx-btn" id="room-match" type="button">Play someone now</button>
         <form class="cx-join" id="room-join">
           <input id="room-code" maxlength="6" placeholder="code" aria-label="Room code" autocomplete="off" spellcheck="false">
           <button class="cx-btn" type="submit">Join</button>
@@ -130,12 +156,14 @@
       <p class="cx-online__msg" id="online-msg" role="status" aria-live="polite"></p>
     </div>
 
+    <div id="look-slot"></div>
+
     <h2 class="cx-side__head">The moves</h2>
     <ol class="cx-moves" id="moves"></ol>
 
     <h2 class="cx-side__head">Eaten so far</h2>
-    <p class="cx-tray" id="tray-0" aria-label="Taken from the orange team"></p>
-    <p class="cx-tray" id="tray-1" aria-label="Taken from the purple team"></p>
+    <p class="cx-tray" id="tray-0" role="group" aria-label="Taken from the orange team"></p>
+    <p class="cx-tray" id="tray-1" role="group" aria-label="Taken from the purple team"></p>
    </div>
   </aside>
 </main>
@@ -158,6 +186,23 @@
 <script src="/sling.js" defer></script>
 <script src="/weather.js" defer></script>
 <script src="/puzzles.js" defer></script>
-<script src="/game.js" defer></script>
+<script src="/game/01-board.js" defer></script>
+<script src="/game/02-moves.js" defer></script>
+<script src="/game/03-turns.js" defer></script>
+<script src="/game/04-doodles.js" defer></script>
+<script src="/game/05-idle.js" defer></script>
+<script src="/game/06-ways.js" defer></script>
+<script src="/game/07-controls.js" defer></script>
+<script src="/game/08-extras.js" defer></script>
+<script src="/game/09-story.js" defer></script>
+<script src="/game/10-door.js" defer></script>
+<script src="/thinker.js" defer></script>
+<script src="/look.js" defer></script>
+<script src="/match.js" defer></script>
+<script src="/pgn.js" defer></script>
+<script src="/review.js" defer></script>
+<script src="/openings.js" defer></script>
+<script src="/adventure.js" defer></script>
+<script src="/school.js" defer></script>
 </body>
 </html>

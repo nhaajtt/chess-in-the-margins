@@ -488,7 +488,8 @@
       const cv = document.createElement("canvas");
       cv.width = W; cv.height = H;
       cv.getContext("2d").drawImage(im, 0, 0, W, H);
-      cv.toBlob(ok, "image/png");
+      // hand the canvas's memory back at once (Safari keeps a tight limit on canvas memory)
+      cv.toBlob((blob) => { cv.width = cv.height = 0; ok(blob); }, "image/png");
     });
   }
   function encode(im, W, H) {
@@ -784,10 +785,13 @@
   }
   // measure bits of a creature (its own drawing units, before their own transform) even while its svg
   // is hidden behind the canvas: the svg is shown for the moment it takes
+  const ownBBox = SVGGraphicsElement.prototype.getBBox;
   function measure(c, nodes) {
     const hidden = c.svg.style.display === "none";
     if (hidden) c.svg.style.display = "";
-    try { return nodes.map((n) => { try { return n.getBBox(); } catch { return null; } }); }
+    // the browser's own measuring, never a stand-in put on the node: gsap leaves one that lifts the node out of
+    // the drawing and puts it back, which reads here as "something was added" and asks for a measure again, every frame
+    try { return nodes.map((n) => { try { return ownBBox.call(n); } catch { return null; } }); }
     finally { if (hidden) c.svg.style.display = "none"; }
   }
   const box = (c, node) => measure(c, [node])[0];

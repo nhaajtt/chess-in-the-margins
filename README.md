@@ -150,14 +150,21 @@ the address to see one on any day.
 ## What you can do
 
 - **Play a friend online:** open a room, send the six-letter code or the link (`chess.nhaajt.com/r/CODE`), and play. No sign-up, just a name. Send little reactions, offer a draw, ask for a rematch; anyone else with the code can watch. If a friend drops out, their creatures doze off until they are back.
-- Play the computer on easy, normal or hard, as either team, or play a friend on the same screen.
-- Use a 5 or 10 minute clock. Every second the old time is crossed out and the new one written in.
+- **Play someone now:** no friend around? The rooms service pairs you with the next visitor who is waiting.
+- Play the computer on easy, normal, hard or master, as either team, or play a friend on the same screen. The computer thinks off the page's own thread, so the creatures keep moving while it does.
+- **The golden star:** a story of eight chapters. Each one is a boss with its own way of playing (sleepy, reckless, greedy, careful), from a blob that starts without its queen and rooks to the penguin king at full strength. Stars are kept on your device.
+- **How the creatures move:** eleven little lessons for someone who has never played: one for each creature, then check, checkmate, castling, en passant and promotion, on a small board of their own, in English and Vietnamese.
+- **Look back at the game:** step through any game on a small board while the owl marks every move in red pen like homework: a tick, "!" , "?" or "??", with one plain sentence about what was better, and a line showing who was ahead.
+- Save or load a game: copy the game as PGN or the position as FEN, or paste one in and play on from there.
+- The creatures know about 120 openings by name and say so on the sticky note.
+- Use a 1, 3, 5 or 10 minute clock, with two seconds back for every move if you like. Every second the old time is crossed out and the new one written in.
 - Undo, flip the board (it turns round on the table) or resign with a sticky note that asks `resign?`.
 - Turn the sound on: every creature sounds like itself, with real recordings. The owl king hoots, the penguin squeaks and waddles, the bee queen buzzes, the crested bird tweets and pecks, the pony and the zebra snort, neigh and clop along on their hooves, the acorn's wooden sword swishes and clacks on wood, the wizard's spell zaps, the sandcastle crunches and crumbles, the puffball goes poof, the mushroom bonks heads and the purple blob goes bloop. Tap a creature whose team is not moving and it only gives a soft little blup. Whoever is hit cries out in its own voice. The beach is all around you: waves and the odd gull by day, waves, crickets and a far-off owl at night. While the page is drawn you hear a real pencil, and each creature says hello as it is coloured in; the opening story keeps its quiet music box and has its own sound switch.
 - Set the volume with the slingshot under the buttons: pull the pebble back and let go. The further it flies, the louder; the little flag runs to where it lands. The arrow keys work too. On a wide screen, pull it the other way to shoot at the creatures: a pebble, an acorn, a paper ball, a water balloon, a tomato or a rubber duck. Hit them too often and they get their own back: the biggest one stomps the slingshot flat, the whole team piles on, or the wizard zaps it to a crisp; then the pencil draws a new one.
 - Browsers keep a page silent until it is touched, so once the board is drawn a little creature holds up a sign: tap me to hear the beach.
-- Today's puzzle: pick "today's puzzle: mate in two" and find the checkmate in two moves. A new one every day (New game gives you another); the puzzles come from the [Lichess puzzle database](https://database.lichess.org/#puzzles) (CC0) and every one was checked with this game's own engine. Two wrong tries and the creature that should move gives itself away.
-- Stickers: eighteen little prizes for things like a knight checkmate, a win without losing anyone, solving puzzles, or getting the slingshot zapped. They are kept on your device; the sticker book is under the buttons.
+- Today's puzzles: mate in one, two or three, or win a piece, 300 puzzles in all, with a new one of each kind every day (New game gives you another). Or take the rush: as many as you can in three minutes, and three wrong moves end it; the puzzles come from the [Lichess puzzle database](https://database.lichess.org/#puzzles) (CC0) and every one was checked with this game's own engine. Two wrong tries and the creature that should move gives itself away.
+- The page your way: plain, lined, squared or brown paper, bolder ink for easier reading, and a little buzz on phones when something happens.
+- Stickers: nineteen little prizes for things like a knight checkmate, a win without losing anyone, solving puzzles, or getting the slingshot zapped. They are kept on your device; the sticker book is under the buttons.
 - The real weather: if it is raining, snowing, foggy or windy where you are, it is on the page too (and you hear the rain). The rough place comes from the network on the server side and is rounded to half a degree before the weather service is asked; the page never sees it and nothing is stored. Add `?weather=rain` (snow, storm, fog, wind) to see one.
 - Works offline: the game can be installed like an app and plays without a connection against the computer, two on one screen, or the puzzles (online play still needs the internet).
 - Without a mouse: the slingshot takes the arrow keys for the volume and Enter to throw at the next creature, and says what happened for screen readers.
@@ -175,21 +182,27 @@ No framework and no build step: just HTML, CSS and plain JavaScript in a handful
 
 | File | What it does |
 |---|---|
-| `engine.js` | The rules of chess and the computer opponent, written from scratch. It uses a 0x88 board with legal move generation, castling, en passant, promotion, 50-move and threefold repetition rules, and SAN notation. The opponent searches with alpha-beta, quiescence and MVV-LVA move ordering under a time budget. |
+| `engine.js` | The rules of chess and the computer opponent, written from scratch. It uses a 0x88 board with legal move generation, castling, en passant, promotion, 50-move and threefold repetition rules, and SAN notation. The opponent searches with alpha-beta and quiescence under a time budget; on hard and master it adds a transposition table, null-move pruning, killer and history ordering and a fuller evaluation, and it can be given a style (careful, reckless, greedy, sleepy). |
 | `creatures.js` | The twelve creatures, drawn with [rough.js](https://roughjs.com) from separate parts (legs, arms, hat, face). Each part is drawn twice and the copies take turns so the lines boil. It also handles expressions, idle life, walking and the drawing-in effect. Once drawn, the whole cast is painted on one canvas each frame from ready-made pictures of each part, while the hidden SVG stays as the skeleton the animations move, which keeps it smooth on phones. |
-| `game.js` | Everything else: the board on a tilted plane with creatures projected onto it, moves and fights animated with [GSAP](https://gsap.com), the camera, the story, the doodles, the commentary and the clock. |
+| `game/` | Everything else, in ten files that load in order: the board on a tilted plane with creatures projected onto it, moves and fights animated with [GSAP](https://gsap.com), the camera, the story, the doodles, the commentary and the clock. |
 | `paper.js` | Paints the sheet of paper once on a canvas. |
 | `sound.js` | Plays the recordings in `assets/sfx/` (public domain sounds from Freesound, listed in `assets/sfx/CREDITS.md`): a voice, feet, a wind-up and a blow for each of the 12 creatures, and the beach ambience by day and night. Music (the story's music box, the team tunes, the losing trombone) is made with the Web Audio API, which also covers for any recording not loaded yet. Off until you turn it on. |
 | `sling.js` | The volume slingshot: shoot along the ruler to set the volume, or at the creatures for fun (and their revenge). Also the "tap me" sign. |
 | `torch.js` | Torchlight at night: the page goes dark and a torch lights the board. |
 | `weather.js`, `api/weather.js` | The real weather on the page; the function answers with one word for the sky and never sends a place to the page. |
-| `puzzles.js` | Forty mate-in-two puzzles from the Lichess puzzle database (CC0). |
+| `puzzles.js` | Three hundred puzzles (mate in one, two and three, and winning a piece) from the Lichess puzzle database (CC0). `scripts/puzzles.mjs` builds and checks them. |
+| `engine-worker.js`, `thinker.js` | The computer's thinking in a worker, so the page never waits for it. |
+| `review.js`, `pgn.js`, `openings.js` | The look back at a game, saving and loading games, and the names of the openings. |
+| `adventure.js`, `school.js` | The story of the golden star and the lessons. |
+| `look.js` | The paper kinds, bold ink and the buzz. |
+| `match.js` | Asks the rooms service for someone to play. |
 | `sw.js`, `manifest.webmanifest` | The offline copy and the install details. |
 | `vendor/` | GSAP and rough.js, served from the site itself so the game works offline (GSAP under its standard no-charge license, rough.js under MIT). |
 | `server/` | The online rooms: a Cloudflare Worker with one Durable Object per room. It keeps the real game, checks every move with the same `engine.js`, talks over WebSockets, only accepts the game's own pages, limits new rooms per visitor, sockets per room and messages per socket, and forgets a room a day after it was last used. |
 | `scripts/perft.mjs` | Checks the move generator against the standard perft counts. |
 | `scripts/rules.mjs` | Checks mate, stalemate, repetition, the fifty-move rule, castling, en passant and promotion. |
 | `scripts/site-check.mjs` | Checks that every file the page and the offline copy need exists, and that the security headers match what the page uses. |
+| `scripts/e2e/` | Plays the page in a headless Chrome: the rules on the board, clocks, puzzles, saving and loading, the story, storage, keyboard, phone size, reduced motion, offline, and two pages in a room. |
 | `server/test/` | Checks the rooms: seats, turns, tokens, junk messages, floods and origins. |
 
 The move generator matches the published perft numbers:
@@ -209,11 +222,16 @@ cd chess-in-the-margins
 python -m http.server 5190 --bind 127.0.0.1
 # open http://localhost:5190
 
+npm run lint                    # every script
 npm test                        # the rules, the site and the rooms
+npm run test:e2e                # the page itself, in a headless Chrome
+npm run test:e2e:online         # two pages playing through the rooms (needs server/ installed)
 
 # online rooms on this machine (the page talks to them when opened on localhost)
 cd server && npm ci && npm run dev
 ```
+
+`docs/architecture.md` maps the files; `CONTRIBUTING.md` has the ground rules.
 
 Every push runs the checks on GitHub Actions. The live site is deployed on Vercel from `main`; `vercel.json` sets the security headers. The rooms are deployed with `npm run deploy` in `server/`.
 
@@ -232,14 +250,14 @@ Một hôm, ai đó vẽ một ngôi sao vàng duy nhất ngay giữa trang. Vua
 Vua Chim Cánh Cụt bảo nét viền là mực tím. Thế là hai bên phân xử theo cách xưa: sáu mươi tư ô cờ, mỗi lượt một nước.
 
 - **Mỗi quân là một sinh vật vẽ bằng code**, có khớp tay chân thật. Chúng biết thở, chớp mắt, nhìn quanh, đi bộ và vẫy tay.
-  Quân bị đe doạ thì run và đổ mồ hôi; vua bị chiếu thì ôm đầu. Dấu hiệu quân cờ luôn nằm trên đầu: vua có thánh giá,
+  Quân bị đe dọa thì run và đổ mồ hôi; vua bị chiếu thì ôm đầu. Dấu hiệu quân cờ luôn nằm trên đầu: vua có thánh giá,
   hậu có viên ngọc, tượng đội mũ có khe, xe có răng cưa, mã là con ngựa.
-- **Ăn quân là đánh nhau**, mỗi loài một đòn riêng: nấm húc đầu, ngựa đá hậu, phù thuỷ phóng tia sét, lâu đài dậm đất,
-  ong vẩy đũa phép, cú tát cánh. Bên thua mắt xoắn ốc, mũ bay mất, ngã ngửa rồi hoá ma bay vào khay.
+- **Ăn quân là đánh nhau**, mỗi loài một đòn riêng: nấm húc đầu, ngựa đá hậu, phù thủy phóng tia sét, lâu đài dậm đất,
+  ong vẩy đũa phép, cú vỗ cánh. Bên thua mắt xoắn ốc, mũ bay mất, ngã ngửa rồi hóa ma bay vào khay.
 - **Cả trang giấy đều sống:** mặt trời, mặt trăng ngủ, cá voi được tô màu dần theo ván cờ, bãi biển có nàng tiên cá,
   cá heo, cua, cùng ếch bắt ruồi, mây mưa tưới hoa, khinh khí cầu, máy bay giấy và mèo ngủ.
-- **Phần mở đầu** là một câu chuyện ngắn song ngữ Anh–Việt, vẽ từng cảnh rồi dùng cục tẩy xoá đi trước khi vẽ cảnh mới.
-- **Chơi online với bạn bè:** tạo phòng, gửi mã 6 ký tự hoặc link, không cần đăng ký, chỉ cần tên. Có biểu cảm, xin hoà, chơi lại; người khác có mã thì vào xem.
+- **Phần mở đầu** là một câu chuyện ngắn song ngữ Anh–Việt, vẽ từng cảnh rồi dùng cục tẩy xóa đi trước khi vẽ cảnh mới.
+- **Chơi online với bạn bè:** tạo phòng, gửi mã 6 ký tự hoặc link, không cần đăng ký, chỉ cần tên. Có biểu cảm, xin hòa, chơi lại; người khác có mã thì vào xem.
 - Chơi với máy (dễ, vừa, khó) hoặc hai người chung một máy; có đồng hồ, undo, lật bàn cờ, xin thua, và chơi được bằng bàn phím.
 - Không framework, không build: HTML, CSS và JavaScript thuần. Engine cờ tự viết, kiểm tra bằng perft.
 

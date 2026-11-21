@@ -21,7 +21,8 @@
   // the owner's birthday, as "MM-DD" (null: no birthday theme unless asked for with ?theme=birthday)
   const BIRTHDAY = "01-01";
   const today = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
-  const near = (now, at, before, after) => { const t = (now - at) / 86400000; return t >= -before && t < after + 1; };
+  // rounded to whole days: a day is 23 or 25 hours long when the clocks change, which pushed the edge a day out
+  const near = (now, at, before, after) => { const t = Math.round((now - at) / 86400000); return t >= -before && t < after + 1; };
 
   const THEMES = {
     halloween: { note: "happy Halloween! everyone came in costume", when: (n, y) => near(n, day(y, "10-31"), 2, 2) },
@@ -76,7 +77,6 @@
     if (before) parent.insertBefore(g, before); else parent.append(g);
     return g;
   }
-  const tilt = (g, deg, ox, oy) => g.setAttribute("transform", `rotate(${deg} ${ox} ${oy})`);
 
   const PIECES = {
     santa(s, cx, top, w) {
@@ -270,7 +270,7 @@
   }
 
   /* ---------- the page's holiday doodles ---------- */
-  // x: the drawing helpers of the doodle layer (see drawDeco in game.js)
+  // x: the drawing helpers of the doodle layer (see drawDeco in game/04-doodles.js)
   function decorate(x) {
     const theme = id;
     if (night()) nightfall(x);
@@ -482,7 +482,7 @@
         if (anim) {
           const pops = [...cr.querySelectorAll(".t-cracker")].reverse();
           loop(G.timeline({ repeat: -1, repeatDelay: 9 })
-            .to(pops, { opacity: 0, scale: 1.6, svgOrigin: `${fx} ${fy + 60}`, duration: 0.08, stagger: { each: 0.16, onStart() { const t = this.targets()[0]; const b = t.getBBox(); const w = svgEl("text", { x: b.x + R(-30, 30), y: b.y + R(-6, 10), class: "t-pop" }); w.textContent = Math.random() < 0.5 ? "đùng!" : "pop!"; deco.append(w); G.timeline({ onComplete: () => w.remove() }).fromTo(w, { scale: 0.3, opacity: 1, svgOrigin: `${b.x} ${b.y}` }, { scale: 1.2, duration: 0.25, ease: "back.out(3)" }).to(w, { opacity: 0, y: -14, duration: 0.5 }); } } })
+            .to(pops, { opacity: 0, scale: 1.6, svgOrigin: `${fx} ${fy + 60}`, duration: 0.08, stagger: { each: 0.16, onStart() { const t = this.targets()[0]; let b; try { b = t.getBBox(); } catch { return; /* not drawn right now */ } const w = svgEl("text", { x: b.x + R(-30, 30), y: b.y + R(-6, 10), class: "t-pop" }); w.textContent = Math.random() < 0.5 ? "đùng!" : "pop!"; deco.append(w); G.timeline({ onComplete: () => w.remove() }).fromTo(w, { scale: 0.3, opacity: 1, svgOrigin: `${b.x} ${b.y}` }, { scale: 1.2, duration: 0.25, ease: "back.out(3)" }).to(w, { opacity: 0, y: -14, duration: 0.5 }); } } })
             .to(pops, { opacity: 1, scale: 1, duration: 0.4, stagger: 0.05 }, "+=2"));
         }
       }

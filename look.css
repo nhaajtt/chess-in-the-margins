@@ -1,0 +1,16 @@
+/* Look and comfort options: kraft paper and bold ink. The lined and squared sheets are painted by paper.js. */
+
+/* kraft: brown wrapping paper; the ink stays dark and is deepened a little so small text still reads */
+html.paper-kraft { --paper: #d2b48c; --ink-2: #3a3e4c; --pen-blue: #2a3a96; --pen-red: #a3301c; --note: #fff1b8; }
+html.paper-kraft body:not(.is-night), html.paper-kraft .cx-intro, html.paper-kraft .bk-leaf { background-color: #d2b48c; }
+
+/* bold ink: darker ink and secondary text (all above 4.5:1 on the paper), thicker focus rings */
+html.bold-ink { --ink: #14161d; --ink-2: #353948; --pen-blue: #24348a; --pen-red: #a3301c; }
+html.bold-ink.paper-kraft { --ink-2: #2b2f3a; --pen-blue: #1f2d7a; --pen-red: #8f2a18; }
+html.bold-ink body.is-night { --ink: #ffffff; --ink-2: #e6e9f6; --pen-blue: #c4d0ff; --pen-red: #ffb5a3; }
+html.bold-ink :focus-visible { outline-width: 5px; outline-style: solid; outline-offset: 3px; }
+html.bold-ink .cx-opts input { border-width: 3px; }
+html.bold-ink .cx-opts input:checked { border-color: var(--pen-red); }
+html.bold-ink .cx-opts label:has(input:checked) { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 0.2em; font-weight: 700; }
+html.bold-ink .cx-opts legend { color: var(--ink); }
+html.bold-ink a { text-decoration-thickness: 2px; }

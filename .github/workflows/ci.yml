@@ -26,19 +26,16 @@ jobs:
           node-version: 22
 
       - name: Syntax of every script
-        run: for f in *.js api/*.js server/src/*.js scripts/*.mjs server/test/*.mjs; do node --check "$f"; done
+        run: for f in *.js api/*.js server/src/*.js scripts/*.mjs scripts/e2e/*.mjs server/test/*.mjs; do node --check "$f"; done
 
-      - name: Move generator (perft)
-        run: node scripts/perft.mjs
+      - name: Lint
+        run: npm run lint
 
-      - name: Game rules
-        run: node --test scripts/rules.mjs
+      - name: Types
+        run: npm run types
 
-      - name: Site integrity and security headers
-        run: node --test scripts/site-check.mjs
-
-      - name: Rooms server
-        run: node --test server/test/room.test.mjs
+      - name: Unit tests (move generator, rules, site checks, notation, puzzles, adventure, rooms server)
+        run: npm test
 
       - name: Rooms server dependencies
         working-directory: server
@@ -46,3 +43,43 @@ jobs:
           npm ci --ignore-scripts --no-fund
           npm audit --audit-level=low
           npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      # the browser that comes with the runner image, driven over the DevTools protocol; nothing is installed
+      - name: Browser tests
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: |
+          "$CHROME_PATH" --version
+          npm run test:e2e
+
+  e2e-online:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Rooms server dependencies
+        working-directory: server
+        run: npm ci --ignore-scripts --no-fund
+
+      # two pages play each other through the rooms service running locally (it skips itself if the service cannot start)
+      - name: Online rooms tests
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: npm run test:e2e:online

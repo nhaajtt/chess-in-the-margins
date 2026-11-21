@@ -12,10 +12,11 @@
   function ask() {
     const q = new URLSearchParams(location.search).get("weather");
     if (q) return Promise.resolve(q === "wind" ? { sky: "clear", wind: true } : { sky: SKIES.includes(q) ? q : "clear", wind: false });
-    return fetch("/api/weather", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => j || { sky: "clear", wind: false });
+    return fetch("/api/weather").then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => j || { sky: "clear", wind: false });
   }
   function canvas() {
     if (W.cv) return W.cv;
+    /** @type {*} */
     const cv = document.createElement("canvas");
     cv.className = "weather";
     cv.setAttribute("aria-hidden", "true");

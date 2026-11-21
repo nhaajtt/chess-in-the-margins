@@ -88,7 +88,7 @@
     holder.setAttribute("aria-describedby", help.id);
     const tell = (t) => { live.textContent = ""; setTimeout(() => { live.textContent = t; }, 50); };
     const svg = holder.firstElementChild, q = (s) => svg.querySelector(s);
-    const ammoG = q(".sl__ammo"), back = q(".sl__band--back"), front = q(".sl__band--front"), frame = q(".sl__frame"), wood = q(".sl__wood");
+    const ammoG = q(".sl__ammo"), back = q(".sl__band--back"), front = q(".sl__band--front"), frame = q(".sl__frame");
     const trail = q(".sl__trail"), mark = q(".sl__mark"), flag = q(".sl__flag"), pct = q(".sl__pct"), grab = q(".sl__grab");
     const at = { x: REST.x, y: REST.y };
     let loaded = "pebble", broken = false, inFlight = false;
@@ -253,12 +253,14 @@
     const walkTo = (job, a, vx, vy, speed = 260) => {
       const [fx2, fy2] = a.toFrame(vx, vy), [px, py] = a.pos(), d = Math.hypot(fx2 - px, fy2 - py);
       const gait = CR().walk(a.c, 0.12);
+      job.add(gait); // so a job cut short kills the gait too, not only a finished walk
       return job.add(G.timeline({ onComplete: () => { gait.kill(); CR().settle(a.c); } })
         .to(a.el, { ...a.put(fx2, fy2), duration: Math.max(0.4, d / speed), ease: "power1.inOut" }));
     };
     const walkHome = (job, a, speed = 260) => {
       const [hx, hy] = a.home(), [px, py] = a.pos(), d = Math.hypot(hx - px, hy - py);
       const gait = CR().walk(a.c, 0.12);
+      job.add(gait); // so a job cut short kills the gait too, not only a finished walk
       return job.add(G.timeline({ onComplete: () => { gait.kill(); CR().settle(a.c); } })
         .to(a.el, { ...a.put(hx, hy), duration: Math.max(0.4, d / speed), ease: "power1.inOut" }));
     };
@@ -399,7 +401,7 @@
 
     /* ---------- the hand on the band ---------- */
     let pulling = false, power = 0, aim = null;
-    grab.addEventListener("pointerdown", (e) => { if (broken || inFlight) return; pulling = true; holder.classList.add("is-pulling"); grab.setPointerCapture(e.pointerId); e.preventDefault(); if (SND.unlock) SND.unlock(); });
+    grab.addEventListener("pointerdown", (e) => { if (broken || inFlight) return; pulling = true; holder.classList.add("is-pulling"); try { grab.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ } e.preventDefault(); if (SND.unlock) SND.unlock(); });
     grab.addEventListener("pointermove", (e) => {
       if (!pulling) return;
       const p = toSvg(e);
