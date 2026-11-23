@@ -278,7 +278,7 @@ function award(id) {
   const art = mini(s.piece);
   art.setAttribute("aria-hidden", "true");
   const words = document.createElement("p");
-  words.innerHTML = `<b>New sticker!</b> ${s.name}`;
+  words.append(Object.assign(document.createElement("b"), { textContent: "New sticker!" }), ` ${s.name}`);
   t.append(art, words);
   document.body.append(t);
   sfx("page");
@@ -317,6 +317,7 @@ function openStickers() {
     document.body.append(d);
     d.addEventListener("click", (e) => { if (e.target === d) d.close(); });
   }
+  // safe-anything:ignore fixed markup; only two counts are filled in
   d.innerHTML = `<h2 id="sticker-title">Stickers</h2><p class="cx-book__sub">${Object.keys(stickers).length} of ${STICKERS.length} collected. They are kept on this device.</p><ul class="cx-book__grid"></ul><button class="cx-btn cx-btn--solid" type="button" id="sticker-close">Close</button>`;
   const grid = d.querySelector("ul");
   STICKERS.forEach((s) => {
@@ -326,7 +327,7 @@ function openStickers() {
     const art = mini(s.piece);
     art.setAttribute("aria-hidden", "true");
     const t = document.createElement("div");
-    t.innerHTML = `<b>${got ? s.name : "not yet"}</b><span>${s.how}</span>`;
+    t.append(Object.assign(document.createElement("b"), { textContent: got ? s.name : "not yet" }), Object.assign(document.createElement("span"), { textContent: s.how }));
     li.append(art, t);
     grid.append(li);
   });
@@ -435,6 +436,7 @@ function openDiary(start = 0) {
   const paint = () => {
     const e = all[i];
     const day = new Date(e.at).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+    // safe-anything:ignore fixed markup; the text is set with textContent below
     d.innerHTML = `<p class="cx-diary__date"></p><h2 id="diary-title"></h2><ol class="cx-diary__lines"></ol><p class="cx-diary__by"></p>
         <p class="cx-diary__nav"><button class="cx-btn" type="button" data-go="1">older page</button><button class="cx-btn" type="button" data-go="-1">newer page</button><button class="cx-btn cx-btn--solid" type="button" data-close>Close</button></p>`;
     d.querySelector(".cx-diary__date").textContent = `${day} · page ${all.length - i} of ${all.length}`;

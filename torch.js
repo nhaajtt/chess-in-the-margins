@@ -19,6 +19,7 @@
     shade.setAttribute("class", "torch-shade");
     shade.setAttribute("aria-hidden", "true");
     // the dark is a sheet with a hole: the mask is white where it is dark, black where the light falls, grey in the beam
+    // safe-anything:ignore fixed artwork
     shade.innerHTML = `<defs>
       <radialGradient id="torch-spot"><stop offset="0.55" stop-color="#000"/><stop offset="1" stop-color="#fff"/></radialGradient>
       <linearGradient id="torch-cone" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6a6a6a"/><stop offset="1" stop-color="#a0a0a0"/></linearGradient>

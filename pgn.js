@@ -167,6 +167,7 @@
         d.addEventListener("close", () => { const o = d.__opener; if (o && o.focus && document.contains(o)) o.focus(); });
       }
       d.__opener = opener;
+      // safe-anything:ignore fixed markup
       d.innerHTML = `<h2 id="pgn-title">Save or load a game</h2>
 <p class="cx-book__sub">Copy this game to keep it, or paste a game or a position to play from there.</p>
 <div class="pg-row"><button class="cx-btn" type="button" id="pgn-copy-game">Copy the game (PGN)</button><button class="cx-btn" type="button" id="pgn-copy-fen">Copy the position (FEN)</button></div>

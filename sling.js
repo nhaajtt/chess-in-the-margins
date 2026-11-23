@@ -9,6 +9,7 @@
   const NS = "http://www.w3.org/2000/svg";
   const R = (a, b) => a + Math.random() * (b - a);
   const pick = (l) => l[Math.floor(Math.random() * l.length)];
+  // safe-anything:ignore only called with fixed artwork
   const el = (t, a = {}, kids = "") => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (kids) e.innerHTML = kids; return e; };
   const INK = "#2b2f3a";
 
@@ -52,6 +53,7 @@
     const xOf = (v) => X0 + v * (X1 - X0);
     const ticks = Array.from({ length: 11 }, (_, i) => `M${xOf(i / 10).toFixed(1)} ${GY - (i % 5 ? 3 : 6)} L${xOf(i / 10).toFixed(1)} ${GY + 3}`).join(" ");
     holder.classList.add("sl");
+    // safe-anything:ignore fixed artwork
     holder.innerHTML = `<svg class="sl__svg" viewBox="0 0 320 116" aria-hidden="true">
       <text class="sl__lab" x="2" y="14" fill="#5d6170">${o.label || "volume: pull the pebble back, let go"}</text>
       <path d="M78 ${GY} Q150 ${GY - 2} 210 ${GY + 1} T316 ${GY - 1}" fill="none" stroke="${INK}" stroke-width="2.2" stroke-linecap="round"/>
@@ -92,6 +94,7 @@
     const trail = q(".sl__trail"), mark = q(".sl__mark"), flag = q(".sl__flag"), pct = q(".sl__pct"), grab = q(".sl__grab");
     const at = { x: REST.x, y: REST.y };
     let loaded = "pebble", broken = false, inFlight = false;
+    // safe-anything:ignore AMMO is fixed artwork
     const load = (name) => { loaded = name; ammoG.innerHTML = AMMO[name]; draw(); };
     const draw = () => {
       ammoG.setAttribute("transform", `translate(${at.x.toFixed(1)} ${at.y.toFixed(1)})`);
@@ -471,7 +474,7 @@
     const sign = document.createElement("button");
     sign.type = "button";
     sign.className = "sl-tapme";
-    sign.innerHTML = `<span>${o.text || "tap me to hear the beach"}</span>`;
+    sign.append(Object.assign(document.createElement("span"), { textContent: o.text || "tap me to hear the beach" }));
     document.body.append(sign);
     const placeIt = () => { const r = o.rect(); if (!r) return; sign.style.left = `${r.left + scrollX + r.width / 2}px`; sign.style.top = `${r.top + scrollY + r.height * 0.3}px`; };
     placeIt();

@@ -64,6 +64,7 @@ export class Game {
 
   /* ---- reading ---- */
 
+  // safe-anything:ignore runs test code in the test browser
   eval(code, o) { return this.page.eval(code, o); }
   waitFor(code, o) { return this.page.waitFor(code, o); }
 

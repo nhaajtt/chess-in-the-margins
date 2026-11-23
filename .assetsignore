@@ -10,3 +10,16 @@ wrangler.jsonc
 vercel.json
 package.json
 package-lock.json
+.env*
+.vercel
+.vercelignore
+.github
+.claude
+.vscode
+graphify-out
+docs
+shots
+types
+eslint.config.mjs
+jsconfig.json
+*.md

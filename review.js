@@ -155,6 +155,7 @@
     }
     d.onclose = () => { token++; if (opener && opener.focus && document.contains(opener)) opener.focus(); };
 
+    // safe-anything:ignore fixed markup
     d.innerHTML = `<h2 id="rv-title">Look back at the game</h2>
 <p class="rv-progress" id="rv-progress" role="status"></p>
 <div class="rv-main">

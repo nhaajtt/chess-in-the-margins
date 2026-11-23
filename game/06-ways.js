@@ -443,6 +443,7 @@ function teamPhoto(winner) {
   card.className = "cx-photo";
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "Team photo");
+  // safe-anything:ignore fixed markup; the date is escaped
   card.innerHTML = `${svg}<div class="cx-photo__row"><button class="cx-btn" type="button" data-act="save">Save the photo</button><button class="cx-btn" type="button" data-act="close">Close</button></div>`;
   document.body.append(card);
   sfx("shutter");

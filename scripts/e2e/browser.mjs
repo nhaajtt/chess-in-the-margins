@@ -261,7 +261,7 @@ export class Page {
    */
   async seedStorage(origin, entries) {
     if (this.seedScript) await this.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: this.seedScript });
-    const nonce = Math.random().toString(36).slice(2);
+    const nonce = crypto.randomUUID().replace(/-/g, "");
     const { identifier } = await this.send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
       if (location.origin !== ${JSON.stringify(origin)}) return;
       const mark = "__e2e_seed_${nonce}";
@@ -274,6 +274,7 @@ export class Page {
 
   /* ---- running code in the page ---- */
   /** Evaluate an expression (a promise is awaited). Rejects with the page's error text, or after `timeout` ms. */
+  // safe-anything:ignore runs test code in the test browser
   async eval(expression, { timeout = 30000, label } = {}) {
     let timer;
     const stuck = new Promise((_, bad) => { timer = setTimeout(() => bad(new Error(`timed out after ${timeout} ms in the page: ${label || String(expression).slice(0, 120)}`)), timeout); });

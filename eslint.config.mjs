@@ -60,5 +60,5 @@ export default [
   { files: ["*.js"], languageOptions: { ecmaVersion: 2023, sourceType: "script", globals: { ...names(browser), ...names(page), importScripts: "readonly" } }, rules },
   { files: ["game/*.js"], languageOptions: { ecmaVersion: 2023, sourceType: "script", globals: { ...names(browser), ...names(page), ...shared } },
     rules: { ...rules, "no-unused-vars": ["error", { vars: "local", args: "none", caughtErrors: "none" }], "no-redeclare": ["error", { builtinGlobals: false }], "prefer-const": "off" } },
-  { files: ["api/**/*.js", "server/**/*.js", "**/*.mjs"], languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: names(node) }, rules },
+  { files: ["api/**/*.js", "server/**/*.js", "**/*.mjs", "worker.js"],languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: names(node) }, rules },
 ];
